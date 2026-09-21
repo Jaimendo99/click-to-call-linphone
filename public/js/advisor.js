@@ -61,7 +61,7 @@ function renderEmpty(message) {
   awaitingFeedback = null;
   clear(stage).append(
     el('section', { class: 'empty-state panel' }, [
-      el('div', { class: 'eyebrow', text: 'Cola' }),
+      el('div', { class: 'eyebrow', text: 'AgenDial' }),
       el('h1', { class: 'client-name', text: message || 'No hay clientes disponibles.' }),
       el('p', { class: 'muted', text: 'Actualiza o inténtalo de nuevo cuando se importen más clientes.' }),
       el('button', {

@@ -11,9 +11,9 @@ services:
       NODE_ENV: production
       DATABASE_PATH: /app/data/app.db
     volumes:
-      - cola-llamadas-data:/app/data
+      - agendial-data:/app/data
     expose:
       - "3000"
 
 volumes:
-  cola-llamadas-data:
+  agendial-data:

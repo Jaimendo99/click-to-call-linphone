@@ -1,4 +1,4 @@
-# Call Queue
+# AgenDial
 
 A small centralized outbound calling app. Advisors do not receive a batch of clients in advance. Every client sits in one shared pool, and the backend assigns the next available client only when an advisor is ready to work.
 
@@ -73,14 +73,42 @@ The suite covers:
 - Admin vs advisor permissions
 - Restore-on-refresh, mandatory feedback, auto-completion, auto-claim, and return-to-pool
 
-## Deployment
+## Docker
 
-1. Install Node.js 20+ on a host the advisors can reach in a browser.
-2. Copy this project to the host and run `npm install --omit=dev`.
-3. Set `SESSION_SECRET`, `ADMIN_PASSWORD`, `DATABASE_PATH`, and `PORT` in the service environment.
-4. Put the app behind HTTPS if it will leave localhost. The session cookie is `HttpOnly` and `SameSite=Lax`.
-5. Run `node src/server.js` under systemd, PM2, or equivalent. Keep it to one process.
-6. Back up `DATABASE_PATH` (and the `-wal` / `-shm` files if present) on a schedule.
+The deployable unit is `docker-compose.yml` plus `Dockerfile`. One service, `web`, listens on port 3000. SQLite is stored in the named volume `agendial-data`, mounted at `/app/data`. Do not add a bind mount. A named volume survives redeploys and can be backed up from Dokploy. Keep a single replica: several processes must not write the same SQLite file.
+
+Local run:
+
+```bash
+cp .env.example .env
+# set SESSION_SECRET, ADMIN_USERNAME, and ADMIN_PASSWORD
+docker compose up --build
+```
+
+Open http://localhost:3000. `ADMIN_PASSWORD` creates the first admin only when the database is empty. Changing it later does not update that user.
+
+## Dokploy
+
+Push this repository, including `Dockerfile`, `docker-compose.yml`, and `.dockerignore`.
+
+1. In a Dokploy project, choose **Create Service** → **Compose**. Do not create an Application or a Database.
+2. **General:** GitHub provider, this repository and branch, Compose type **Docker Compose** (not Stack), Compose path `docker-compose.yml`.
+3. **Environment.** Dokploy writes these next to the compose file as `.env`, which the service loads:
+
+```bash
+SESSION_SECRET=a-long-random-string-different-from-local
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=choose-a-strong-password
+```
+
+`PORT`, `NODE_ENV`, and `DATABASE_PATH` are already set in the compose file. Do not add a volume in the Dokploy UI.
+
+4. **Domains** → **Add Domain**. Service `web`, port `3000`, your host, HTTPS on. Point the DNS record at the Dokploy server. Traefik labels are added by Dokploy; do not write them into the compose file.
+5. **Deploy.**
+
+The production database starts empty. Create advisors and import the CSV in the admin UI. Linphone stays on each advisor's computer, not on the server.
+
+To change the architecture later, edit `docker-compose.yml`, push, and deploy again. Keep the volume name `agendial-data` if the SQLite file should be preserved.
 
 Advisors must use a desktop browser on a machine that has Linphone installed. Click-to-call will not work from a phone.
 
@@ -148,7 +176,7 @@ The advisor works from one screen:
 5. Repeat for every number.
 6. The client completes and the next client appears. The advisor never picks a client id.
 
-If the pool is empty, the screen shows: **No clients currently available.**
+If the pool is empty, the screen shows: **No hay clientes disponibles.**
 
 ## Data model
 
