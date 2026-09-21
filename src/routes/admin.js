@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import multer from 'multer';
 import { CLIENT_STATUS, MAX_CSV_BYTES, ROLES } from '../lib/constants.js';
-import { parseCsvBuffer, guessMapping, cell, extractPhones } from '../lib/csv.js';
+import { parseCsvBuffer, guessMapping, cell, extractPhoneEntries, originHeader } from '../lib/csv.js';
 import { parseJson } from '../db.js';
 import { publicUser, requireAdmin } from '../middleware/auth.js';
 import { validPassword, validUsername } from './auth.js';
@@ -300,8 +300,14 @@ export function createAdminRouter(db) {
        VALUES (?, ?, ?, 'available', ?)`
     );
     const insertPhone = db.prepare(
-      `INSERT INTO phone_numbers (client_id, number, sort_order)
-       VALUES (?, ?, ?)`
+      `INSERT INTO phone_numbers (client_id, number, sort_order, source)
+       VALUES (?, ?, ?, ?)`
+    );
+    const nextSort = db.prepare(
+      `SELECT COALESCE(MAX(sort_order), 0) AS n FROM phone_numbers WHERE client_id = ?`
+    );
+    const phoneExists = db.prepare(
+      `SELECT id FROM phone_numbers WHERE client_id = ? AND number = ?`
     );
     const existsExternal = db.prepare(
       `SELECT id FROM clients
@@ -310,10 +316,24 @@ export function createAdminRouter(db) {
 
     const summary = {
       imported: 0,
+      phonesAdded: 0,
       skippedDuplicate: 0,
       skippedNoPhone: 0,
       skippedNoName: 0,
     };
+    const lineOrigin = originHeader(preview.headers);
+
+    function addPhones(clientId, entries) {
+      let order = nextSort.get(clientId).n;
+      let added = 0;
+      for (const entry of entries) {
+        if (phoneExists.get(clientId, entry.number)) continue;
+        order += 1;
+        insertPhone.run(clientId, entry.number, order, entry.source || null);
+        added += 1;
+      }
+      return added;
+    }
 
     let campaign = null;
     const importTxn = db.transaction(() => {
@@ -335,15 +355,17 @@ export function createAdminRouter(db) {
           summary.skippedNoName += 1;
           continue;
         }
+        const phones = extractPhoneEntries(row, phoneColumns, lineOrigin);
         if (externalId) {
           const existing = existsExternal.get(campaign.id, externalId);
           if (existing) {
-            summary.skippedDuplicate += 1;
+            const added = addPhones(existing.id, phones);
+            if (added) summary.phonesAdded += added;
+            else summary.skippedDuplicate += 1;
             continue;
           }
         }
 
-        const phones = extractPhones(row, phoneColumns);
         if (!phones.length) {
           summary.skippedNoPhone += 1;
           continue;
@@ -361,8 +383,8 @@ export function createAdminRouter(db) {
           name.slice(0, 200),
           JSON.stringify(extra)
         );
-        phones.forEach((number, index) => {
-          insertPhone.run(result.lastInsertRowid, number, index + 1);
+        phones.forEach((entry, index) => {
+          insertPhone.run(result.lastInsertRowid, entry.number, index + 1, entry.source || null);
         });
         summary.imported += 1;
       }
@@ -488,7 +510,7 @@ export function createAdminRouter(db) {
 
     const phones = db
       .prepare(
-        `SELECT id, number, sort_order, status, last_result, notes, last_attempt_at
+        `SELECT id, number, source, sort_order, status, last_result, notes, last_attempt_at
          FROM phone_numbers
          WHERE client_id = ?
          ORDER BY sort_order ASC, id ASC`

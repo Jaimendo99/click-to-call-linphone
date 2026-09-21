@@ -23,6 +23,8 @@ test('full advisor workflow: restore, feedback, complete, auto-claim next', asyn
     assert.equal(first.data.client.name, 'John Smith');
     assert.equal(first.data.client.phones.length, 3);
     assert.equal(first.data.client.status, 'in_progress');
+    assert.equal(first.data.previous, null);
+    assert.equal(first.data.remaining, 4);
 
     const again = await request(ctx.url, maria.jar, '/api/advisor/current-client');
     assert.equal(again.data.client.id, first.data.client.id);
@@ -61,6 +63,8 @@ test('full advisor workflow: restore, feedback, complete, auto-claim next', asyn
     assert.equal(last.data.clientCompleted, true);
     assert.equal(last.data.client.name, 'Ana Torres');
     assert.notEqual(last.data.client.id, first.data.client.id);
+    assert.equal(last.data.previous.name, 'John Smith');
+    assert.equal(last.data.remaining, 3);
 
     const details = await request(
       ctx.url,

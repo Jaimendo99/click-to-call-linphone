@@ -6,7 +6,7 @@ export function loadClientPayload(db, client) {
 
   const phones = db
     .prepare(
-      `SELECT id, number, sort_order, status, last_result, notes, last_attempt_at
+      `SELECT id, number, source, sort_order, status, last_result, notes, last_attempt_at
        FROM phone_numbers
        WHERE client_id = ?
        ORDER BY sort_order ASC, id ASC`
@@ -144,6 +144,36 @@ export function completeClientIfReady(db, clientId, advisorId) {
     );
 
   return result.changes === 1;
+}
+
+export function queueContext(db, advisorId) {
+  const previous =
+    db
+      .prepare(
+        `SELECT
+           c.id,
+           c.name,
+           c.external_id,
+           c.completed_at,
+           (SELECT COUNT(*) FROM phone_numbers p WHERE p.client_id = c.id) AS phone_total,
+           (SELECT COUNT(*) FROM phone_numbers p WHERE p.client_id = c.id AND p.last_result IS NOT NULL) AS phone_done
+         FROM clients c
+         WHERE c.assigned_advisor_id = ? AND c.status = ?
+         ORDER BY c.completed_at DESC, c.id DESC
+         LIMIT 1`
+      )
+      .get(advisorId, CLIENT_STATUS.COMPLETED) || null;
+
+  const remaining = db
+    .prepare(
+      `SELECT COUNT(*) AS n
+       FROM clients c
+       JOIN campaigns k ON k.id = c.campaign_id AND k.active = 1
+       WHERE c.status = ?`
+    )
+    .get(CLIENT_STATUS.AVAILABLE).n;
+
+  return { previous, remaining: remaining || 0 };
 }
 
 export function phoneStatusForResult(result) {

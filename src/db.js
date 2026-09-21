@@ -117,7 +117,14 @@ export function openDb(dbPath) {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   db.exec(schema);
   migrateDb(db);
+  ensurePhoneSource(db);
   return db;
+}
+
+function ensurePhoneSource(db) {
+  if (!tableExists(db, 'phone_numbers')) return;
+  if (columnExists(db, 'phone_numbers', 'source')) return;
+  db.exec('ALTER TABLE phone_numbers ADD COLUMN source TEXT');
 }
 
 export function parseJson(value, fallback = {}) {

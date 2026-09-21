@@ -8,6 +8,7 @@ test('turns Ecuador mobiles into the national 09 number the PBX dials', () => {
   assert.equal(normalizePhoneNumber('+593994782287'), '0994782287');
   assert.equal(normalizePhoneNumber('0996006236'), '0996006236');
   assert.equal(normalizePhoneNumber('979863622'), '0979863622');
+  assert.equal(normalizePhoneNumber('1306722891'), null);
 });
 
 test('rejects empty, short, and injected values', () => {

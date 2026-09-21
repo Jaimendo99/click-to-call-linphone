@@ -250,74 +250,219 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
+  background:
+    radial-gradient(880px 380px at 78% -8%, #f6e2cf, transparent 60%),
+    var(--paper);
 }
 
 .advisor-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--paper-2);
+  padding: 22px 40px 6px;
+  background: transparent;
 }
 
+.advisor-top .brand { margin-bottom: 0; }
+
 .client-stage {
-  width: min(820px, 100%);
+  width: min(1120px, calc(100% - 64px));
   margin: 0 auto;
-  padding: 32px 20px 64px;
+  padding: 8px 0 72px;
+}
+
+.desk {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 168px;
+  gap: 40px;
+  align-items: start;
+}
+
+.kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.margin-note { padding-top: 64px; }
+
+.margin-name {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 10px 0 12px;
+}
+
+.margin-meta {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.margin-quiet {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.queue-arrow {
+  color: #b7aa9b;
+  line-height: 0;
+  margin: 0 0 8px;
+}
+
+.queue-arrow svg {
+  width: 88px;
+  height: 88px;
+  display: block;
+}
+
+.margin-ahead .queue-count {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+
+.sheet {
+  background: #fffdf8;
+  border-radius: 28px;
+  padding: 36px 40px 12px;
+  box-shadow:
+    0 1px 0 rgba(27, 23, 18, 0.05),
+    0 30px 70px rgba(78, 48, 22, 0.07);
 }
 
 .client-name {
-  font-size: 42px;
+  font-size: 44px;
+  font-weight: 700;
   letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin: 8px 0 16px;
+  line-height: 1.05;
+  margin: 8px 0 14px;
 }
 
-.meta-grid {
+.place {
+  margin: 0 0 22px;
+  color: #4e463c;
+  font-size: 17px;
+}
+
+.stat-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 18px;
+  gap: 16px 28px;
+  margin: 0 0 8px;
+  padding: 14px 0 16px;
+  border-top: 1px solid #efe6da;
+  border-bottom: 1px solid #efe6da;
+}
+
+.stat-row dt {
+  margin: 0;
   color: var(--muted);
-  margin-bottom: 24px;
-}
-
-.progress-line {
+  font-size: 11px;
   font-weight: 600;
-  margin-bottom: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.phone-list { display: grid; gap: 12px; }
-
-.phone-card {
-  background: var(--paper-2);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px 18px;
-  display: grid;
-  gap: 12px;
+.stat-row dd {
+  margin: 3px 0 0;
+  font-size: 15px;
 }
 
-.phone-card.active {
-  border-color: var(--call);
-  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.12);
-}
-
-.phone-head {
+.numbers-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  align-items: baseline;
+  margin: 22px 0 4px;
 }
+
+.numbers-head h2 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.numbers-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.phone-list { display: grid; }
+
+.dial {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid #f0e8dc;
+}
+
+.dial:last-child { border-bottom: 0; }
+
+.dial.active {
+  background: #fff6ef;
+  margin: 0 -16px;
+  padding: 16px;
+  border-radius: 16px;
+  border-bottom-color: transparent;
+}
+
+.dial.done .phone-number { color: #6d645b; }
+
+.dial-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.tag {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f3ece3;
+  color: #5c534a;
+}
+
+.tag-movistar { background: #ffedd5; color: #9a3412; }
+.tag-cnel { background: #e7eef6; color: #1d4e89; }
+.tag-contacto { background: #f3ece3; color: #5c534a; }
 
 .phone-number {
   font-family: var(--mono);
-  font-size: 22px;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  margin-top: 2px;
+}
+
+.sheet .btn-call {
+  border-radius: 999px;
+  padding: 10px 18px;
 }
 
 .feedback {
   display: grid;
   gap: 10px;
+  grid-column: 1 / -1;
   padding-top: 8px;
   border-top: 1px dashed var(--line);
 }
@@ -378,7 +523,12 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   .app-shell { grid-template-columns: 1fr; }
   .sidebar { flex-direction: row; flex-wrap: wrap; }
   .stats, .details-grid { grid-template-columns: 1fr 1fr; }
-  .client-name { font-size: 32px; }
+  .client-name { font-size: 40px; }
+  .desk { grid-template-columns: 1fr; gap: 18px; }
+  .margin-note { padding-top: 0; }
+  .sheet { padding: 24px 20px 8px; }
+  .queue-arrow svg { width: 56px; height: 56px; }
+  .margin-ahead .queue-count { font-size: 28px; }
 }
 
 @media (max-width: 640px) {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { extractPhones, guessMapping, parseCsvBuffer } from '../src/lib/csv.js';
+import { extractPhoneEntries, extractPhones, guessMapping, parseCsvBuffer } from '../src/lib/csv.js';
 import { importSample, login, request, startTestServer } from './helpers.js';
 
 const fixture = new URL('./fixtures/manatel-sample.csv', import.meta.url);
@@ -26,6 +26,14 @@ test('maps the operational extract and splits contact numbers', () => {
 
   const angelica = parsed.rows[3];
   assert.deepEqual(extractPhones(angelica, mapping.phones), ['0994525838']);
+
+  assert.deepEqual(
+    extractPhoneEntries(
+      { NUMERO: '0987016184', IDENTIFICACION: '1306722891' },
+      ['NUMERO', 'IDENTIFICACION']
+    ).map((entry) => entry.number),
+    ['0987016184']
+  );
 });
 
 test('imported operational rows accept per-number feedback', async () => {
@@ -78,6 +86,53 @@ test('imported operational rows accept per-number feedback', async () => {
     assert.equal(details.data.client.phones[0].notes, 'no contesta');
     assert.equal(details.data.client.attempts.length, 1);
     assert.equal(details.data.client.attempts[0].result, 'No contesta');
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('groups repeated accounts and keeps every number', async () => {
+  const grouped = new URL('./fixtures/grouped-account.csv', import.meta.url);
+  const parsed = parseCsvBuffer(fs.readFileSync(grouped));
+  const mapping = guessMapping(parsed.headers);
+
+  assert.ok(parsed.headers.includes('Valor última Factura'));
+  assert.deepEqual(mapping.phones, ['NUMERO', 'numeros_contacto']);
+  assert.equal(mapping.extra.includes('numero_origen'), false);
+
+  const ctx = await startTestServer();
+  try {
+    const admin = await login(ctx.url, 'admin', 'adminpass1');
+    const imported = await importSample(ctx.url, admin.jar, grouped);
+    assert.equal(imported.commit.data.summary.imported, 2);
+    assert.equal(imported.commit.data.summary.phonesAdded, 2);
+
+    const list = await request(
+      ctx.url,
+      admin.jar,
+      `/api/admin/clients?campaignId=${imported.commit.data.campaign.id}`
+    );
+    const magda = list.data.rows.find((row) => row.name.startsWith('MAGDA'));
+    const aidee = list.data.rows.find((row) => row.name.startsWith('AIDEE'));
+    const magdaDetails = await request(ctx.url, admin.jar, `/api/admin/clients/${magda.id}`);
+    const aideeDetails = await request(ctx.url, admin.jar, `/api/admin/clients/${aidee.id}`);
+
+    assert.deepEqual(
+      magdaDetails.data.client.phones.map((phone) => [phone.number, phone.source]),
+      [
+        ['0995606551', 'CNEL'],
+        ['0993899652', 'Contacto'],
+      ]
+    );
+    assert.equal(magdaDetails.data.client.extra['Valor última Factura'], '7.74');
+    assert.deepEqual(
+      aideeDetails.data.client.phones.map((phone) => [phone.number, phone.source]),
+      [
+        ['0987016184', 'Movistar'],
+        ['0995889252', 'Movistar'],
+        ['0995889999', 'Contacto'],
+      ]
+    );
   } finally {
     await ctx.close();
   }

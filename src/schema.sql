@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   number TEXT NOT NULL,
+  source TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'completed', 'call_back')),

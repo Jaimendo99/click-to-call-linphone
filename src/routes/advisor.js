@@ -4,6 +4,7 @@ import {
   completeClientIfReady,
   getOrClaimClient,
   phoneStatusForResult,
+  queueContext,
 } from '../lib/claim.js';
 import { requireAdvisor } from '../middleware/auth.js';
 
@@ -15,28 +16,32 @@ export function createAdvisorRouter(db) {
     return getOrClaimClient(db, advisorId);
   }
 
-  router.get('/current-client', (req, res) => {
-    const client = currentOrClaim(req.session.user.id);
+  function sendClient(res, advisorId, client, extra = {}) {
+    const queue = queueContext(db, advisorId);
     if (!client) {
       res.json({
         client: null,
+        previous: queue.previous,
+        remaining: queue.remaining,
         message: 'No hay clientes disponibles.',
+        ...extra,
       });
       return;
     }
-    res.json({ client });
+    res.json({
+      client,
+      previous: queue.previous,
+      remaining: queue.remaining,
+      ...extra,
+    });
+  }
+
+  router.get('/current-client', (req, res) => {
+    sendClient(res, req.session.user.id, currentOrClaim(req.session.user.id));
   });
 
   router.post('/claim-next-client', (req, res) => {
-    const client = currentOrClaim(req.session.user.id);
-    if (!client) {
-      res.json({
-        client: null,
-        message: 'No hay clientes disponibles.',
-      });
-      return;
-    }
-    res.json({ client });
+    sendClient(res, req.session.user.id, currentOrClaim(req.session.user.id));
   });
 
   router.post('/phone-numbers/:id/attempt', (req, res) => {
@@ -103,15 +108,10 @@ export function createAdvisorRouter(db) {
       return;
     }
 
-    res.json({
+    sendClient(res, advisorId, outcome.client, {
       saved: true,
       clientCompleted: outcome.completed,
-      client: outcome.client,
-      message: outcome.client
-        ? null
-        : outcome.completed
-          ? 'No hay clientes disponibles.'
-          : null,
+      message: outcome.client ? null : outcome.completed ? 'No hay clientes disponibles.' : null,
     });
   });
 

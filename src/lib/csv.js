@@ -12,9 +12,33 @@ function headerKey(header) {
     .replace(/^_|_$/g, '');
 }
 
+function isOriginHeader(key) {
+  return key === 'numero_origen' || key === 'origen';
+}
+
+export function isIdentityHeader(header) {
+  const key = headerKey(header);
+  return (
+    key === 'identificacion' ||
+    key === 'identificacion_original' ||
+    key === 'identificacion_scientific' ||
+    key === 'cedula'
+  );
+}
+
 function isPhoneHeader(key) {
+  if (isOriginHeader(key)) return false;
   if (/(phone|telefono|tel|movil|celular|mobile|whatsapp|fono)/.test(key)) return true;
-  return key === 'numero' || key.startsWith('numero_') || key.startsWith('numeros_');
+  return key === 'numero' || key.startsWith('numeros_');
+}
+
+function repairMojibake(value) {
+  const text = String(value ?? '');
+  if (!text.includes('Ã') && !text.includes('Â')) return text;
+  if ([...text].some((char) => char.charCodeAt(0) > 255)) return text;
+  const decoded = Buffer.from(text, 'latin1').toString('utf8');
+  if (decoded.includes('\uFFFD')) return text;
+  return decoded;
 }
 
 function externalIdRank(key) {
@@ -54,7 +78,16 @@ export function parseCsvBuffer(buffer) {
     throw new Error(`El CSV supera el máximo de ${MAX_CSV_ROWS} filas`);
   }
 
-  const headers = Object.keys(records[0] || {});
+  const repaired = records.map((row) => {
+    const next = {};
+    for (const [key, value] of Object.entries(row)) {
+      const header = repairMojibake(key);
+      next[header] = typeof value === 'string' ? repairMojibake(value) : value;
+    }
+    return next;
+  });
+
+  const headers = Object.keys(repaired[0] || {});
   if (!headers.length) {
     throw new Error('El CSV no tiene columnas');
   }
@@ -62,7 +95,7 @@ export function parseCsvBuffer(buffer) {
     throw new Error('El CSV tiene demasiadas columnas');
   }
 
-  return { headers, rows: records };
+  return { headers, rows: repaired };
 }
 
 export function guessMapping(headers) {
@@ -83,6 +116,8 @@ export function guessMapping(headers) {
       externalRank = rank;
     } else if (rank != null) {
       extra.push(header);
+    } else if (isOriginHeader(key)) {
+      continue;
     } else if (isPhoneHeader(key)) {
       phones.push(header);
     } else {
@@ -107,16 +142,41 @@ export function phoneTokens(raw) {
     .filter(Boolean);
 }
 
-export function extractPhones(row, phoneColumns) {
+export function originHeader(headers) {
+  return (headers || []).find((header) => headerKey(header) === 'numero_origen') || null;
+}
+
+export function phoneSourceLabel(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  if (/movistar/i.test(text)) return 'Movistar';
+  if (/cnel/i.test(text)) return 'CNEL';
+  return text.slice(0, 40);
+}
+
+function sourceForColumn(column, origin) {
+  const key = headerKey(column);
+  if (key === 'numero') return origin;
+  if (key === 'numeros_contacto' || key.startsWith('numeros_')) return 'Contacto';
+  return null;
+}
+
+export function extractPhoneEntries(row, phoneColumns, originColumn) {
+  const origin = phoneSourceLabel(cell(row, originColumn));
   const seen = new Set();
-  const numbers = [];
-  for (const column of phoneColumns) {
+  const entries = [];
+  for (const column of phoneColumns.filter((name) => !isIdentityHeader(name))) {
+    const source = sourceForColumn(column, origin);
     for (const token of phoneTokens(cell(row, column))) {
       const normalized = normalizePhoneNumber(token);
       if (!normalized || seen.has(normalized)) continue;
       seen.add(normalized);
-      numbers.push(normalized);
+      entries.push({ number: normalized, source });
     }
   }
-  return numbers;
+  return entries;
+}
+
+export function extractPhones(row, phoneColumns) {
+  return extractPhoneEntries(row, phoneColumns).map((entry) => entry.number);
 }

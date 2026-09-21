@@ -29,11 +29,13 @@ export function normalizePhoneNumber(raw) {
 
   // The local PBX dials the national number, for example 0996006236.
   // +593994782287 and 994782287 are the same line and must be sent as 0994782287.
-  if (/^5939\d{8}$/.test(digits)) return `0${digits.slice(3)}`;
-  if (/^09\d{8}$/.test(digits)) return digits;
-  if (/^9\d{8}$/.test(digits)) return `0${digits}`;
+  let national = null;
+  if (/^5939\d{8}$/.test(digits)) national = `0${digits.slice(3)}`;
+  else if (/^09\d{8}$/.test(digits)) national = digits;
+  else if (/^9\d{8}$/.test(digits)) national = `0${digits}`;
 
-  return digits;
+  // A cédula is 10 digits and is not a line the PBX can dial.
+  return /^09\d{8}$/.test(national || '') ? national : null;
 }
 
 export function buildLinphoneCallUri(phoneNumber) {

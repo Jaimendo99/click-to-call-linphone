@@ -113,7 +113,7 @@ mappingForm.addEventListener('submit', async (event) => {
       : 'Quedó inactiva hasta que la actives.';
     showAlert(
       importAlert,
-      `Campaña ${result.campaign?.name || ''}. Importados: ${result.summary.imported}. Duplicados omitidos: ${result.summary.skippedDuplicate}. Sin teléfono: ${result.summary.skippedNoPhone}. ${activeNote}`,
+      `Campaña ${result.campaign?.name || ''}. Importados: ${result.summary.imported}. Teléfonos agregados: ${result.summary.phonesAdded || 0}. Duplicados omitidos: ${result.summary.skippedDuplicate}. Sin teléfono: ${result.summary.skippedNoPhone}. ${activeNote}`,
       'ok'
     );
     state.campaignId = result.campaign?.id ? String(result.campaign.id) : state.campaignId;
