@@ -1,0 +1,6 @@
+client_id,name,phone_1,phone_2,phone_3,email,company,city
+105,John Smith,+593991111111,+593992222222,+593993333333,john@example.com,ABC Corp,Quito
+106,Ana Torres,+593994444444,+593995555555,,ana@example.com,Delta Ltd,Guayaquil
+107,Pedro Alvarez,+593996666666,,,pedro@example.com,Helios,Cuenca
+108,Lucia Mendoza,+593997777777,+593998888888,,lucia@example.com,Norte Sur,Ambato
+109,Carlos Vera,+593999000111,+593999000222,+593999000333,carlos@example.com,Andes,Loja

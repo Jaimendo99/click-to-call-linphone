@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cliente actual · Cola de llamadas</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="advisor-shell">
+    <header class="advisor-top">
+      <div class="brand">
+        <div class="brand-mark">CQ</div>
+        <div>
+          <div class="eyebrow">Asesor</div>
+          <strong>Cliente actual</strong>
+        </div>
+      </div>
+      <div>
+        <span class="muted" id="whoami"></span>
+        <button class="btn btn-ghost" id="logout" type="button" style="margin-left:12px">Salir</button>
+      </div>
+    </header>
+    <main class="client-stage" id="stage"></main>
+  </div>
+  <script type="module" src="/js/advisor.js"></script>
+</body>
+</html>

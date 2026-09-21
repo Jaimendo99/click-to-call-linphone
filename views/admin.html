@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración · Cola de llamadas</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CQ</div>
+        <div>
+          <div class="eyebrow">Administración</div>
+          <strong>Cola de llamadas</strong>
+        </div>
+      </div>
+      <nav class="stack">
+        <button class="nav-btn active" data-view="pool" type="button">Pool de clientes</button>
+        <button class="nav-btn" data-view="import" type="button">Importar CSV</button>
+        <button class="nav-btn" data-view="users" type="button">Usuarios</button>
+      </nav>
+      <div style="margin-top:auto">
+        <div class="muted" id="whoami"></div>
+        <button class="btn btn-ghost" id="logout" type="button" style="margin-top:10px;color:#fff;border-color:#415468">Salir</button>
+      </div>
+    </aside>
+    <main class="content">
+      <section id="view-pool">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Pool central</div>
+            <h1>Clientes</h1>
+          </div>
+        </div>
+        <div class="stats" id="summary"></div>
+        <div class="panel">
+          <div class="toolbar">
+            <button class="btn btn-ghost filter-btn" data-status="" type="button">Todos</button>
+            <button class="btn btn-ghost filter-btn" data-status="available" type="button">Disponibles</button>
+            <button class="btn btn-ghost filter-btn" data-status="in_progress" type="button">En curso</button>
+            <button class="btn btn-ghost filter-btn" data-status="completed" type="button">Completados</button>
+            <input type="search" id="client-search" placeholder="Buscar nombre o cédula" style="max-width:240px">
+          </div>
+          <div id="pool-alert" class="alert hidden"></div>
+          <div id="client-table"></div>
+          <div class="toolbar">
+            <button class="btn btn-ghost" id="prev-page" type="button">Anterior</button>
+            <span class="muted" id="page-label"></span>
+            <button class="btn btn-ghost" id="next-page" type="button">Siguiente</button>
+          </div>
+        </div>
+        <div id="client-details" class="panel hidden" style="margin-top:16px"></div>
+      </section>
+
+      <section id="view-import" class="hidden">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Administración</div>
+            <h1>Importar clientes</h1>
+          </div>
+        </div>
+        <div class="panel stack">
+          <p class="muted">Sube un CSV. Indica el nombre o el identificador y las columnas de teléfono. Los clientes nuevos entran al pool compartido como disponibles.</p>
+          <form id="preview-form" class="toolbar">
+            <input type="file" name="file" accept=".csv,text/csv" required>
+            <button class="btn btn-primary" type="submit">Previsualizar CSV</button>
+          </form>
+          <div id="import-alert" class="alert hidden"></div>
+          <form id="mapping-form" class="stack hidden">
+            <div class="map-grid" id="mapping-fields"></div>
+            <div>
+              <div class="muted" style="margin-bottom:8px">Columnas de teléfono</div>
+              <div class="phone-map" id="phone-columns"></div>
+            </div>
+            <div>
+              <div class="muted" style="margin-bottom:8px">Campos extra</div>
+              <div class="phone-map" id="extra-columns"></div>
+            </div>
+            <button class="btn btn-ok" type="submit">Importar al pool</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-users" class="hidden">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Administración</div>
+            <h1>Usuarios</h1>
+          </div>
+        </div>
+        <div class="details-grid">
+          <div class="panel">
+            <h2>Crear usuario</h2>
+            <form id="create-user" class="stack" style="margin-top:16px">
+              <label class="field"><span>Nombre</span><input name="name" required></label>
+              <label class="field"><span>Usuario</span><input name="username" required></label>
+              <label class="field"><span>Contraseña</span><input name="password" type="password" required minlength="8"></label>
+              <label class="field">
+                <span>Rol</span>
+                <select name="role">
+                  <option value="advisor">Asesor</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </label>
+              <div id="user-alert" class="alert hidden"></div>
+              <button class="btn btn-primary" type="submit">Crear usuario</button>
+            </form>
+          </div>
+          <div class="panel" id="users-table"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="modal-root"></div>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>

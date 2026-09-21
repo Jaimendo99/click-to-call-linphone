@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingresar · Cola de llamadas</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="brand">
+        <div class="brand-mark">CQ</div>
+        <div>
+          <div class="eyebrow">Cola de salida</div>
+          <h1>Cola de llamadas</h1>
+        </div>
+      </div>
+      <form id="login-form" class="stack">
+        <label class="field">
+          <span>Usuario</span>
+          <input type="text" name="username" autocomplete="username" required>
+        </label>
+        <label class="field">
+          <span>Contraseña</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <div id="login-alert" class="alert alert-error hidden"></div>
+        <button class="btn btn-primary btn-wide" type="submit">Ingresar</button>
+      </form>
+    </section>
+  </main>
+  <script type="module" src="/js/login.js"></script>
+</body>
+</html>
