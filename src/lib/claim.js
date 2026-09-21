@@ -20,9 +20,16 @@ export function loadClientPayload(db, client) {
     : null;
 
   const completedPhones = phones.filter((phone) => phone.last_result).length;
+  const campaign = client.campaign_id
+    ? db
+        .prepare('SELECT id, name FROM campaigns WHERE id = ?')
+        .get(client.campaign_id)
+    : null;
 
   return {
     id: client.id,
+    campaign_id: client.campaign_id,
+    campaign,
     external_id: client.external_id,
     name: client.name,
     status: client.status,
@@ -53,9 +60,11 @@ export function getActiveClient(db, advisorId) {
 function claimAvailableClient(db, advisorId) {
   const available = db
     .prepare(
-      `SELECT id FROM clients
-       WHERE status = ?
-       ORDER BY id ASC
+      `SELECT c.id
+       FROM clients c
+       JOIN campaigns k ON k.id = c.campaign_id AND k.active = 1
+       WHERE c.status = ?
+       ORDER BY c.id ASC
        LIMIT 1`
     )
     .get(CLIENT_STATUS.AVAILABLE);
@@ -93,7 +102,13 @@ export function getOrClaimClient(db, advisorId) {
       const claimed = claimAvailableClient(db, id);
       if (claimed) return claimed;
       const stillAvailable = db
-        .prepare('SELECT id FROM clients WHERE status = ? LIMIT 1')
+        .prepare(
+          `SELECT c.id
+           FROM clients c
+           JOIN campaigns k ON k.id = c.campaign_id AND k.active = 1
+           WHERE c.status = ?
+           LIMIT 1`
+        )
         .get(CLIENT_STATUS.AVAILABLE);
       if (!stillAvailable) return null;
     }

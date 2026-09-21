@@ -100,7 +100,7 @@ export async function login(baseUrl, username, password) {
   return { jar, ...result };
 }
 
-export async function importSample(baseUrl, adminJar, csvPath = sampleCsvPath()) {
+export async function importSample(baseUrl, adminJar, csvPath = sampleCsvPath(), campaignName) {
   const form = new FormData();
   form.append(
     'file',
@@ -115,6 +115,7 @@ export async function importSample(baseUrl, adminJar, csvPath = sampleCsvPath())
   const commit = await request(baseUrl, adminJar, '/api/admin/import/commit', {
     method: 'POST',
     body: {
+      ...(campaignName ? { name: campaignName } : {}),
       mapping: suggested || {
         name: 'name',
         external_id: 'client_id',

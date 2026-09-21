@@ -19,6 +19,7 @@
       </div>
       <nav class="stack">
         <button class="nav-btn active" data-view="pool" type="button">Pool de clientes</button>
+        <button class="nav-btn" data-view="campaigns" type="button">Campañas</button>
         <button class="nav-btn" data-view="import" type="button">Importar CSV</button>
         <button class="nav-btn" data-view="users" type="button">Usuarios</button>
       </nav>
@@ -42,6 +43,7 @@
             <button class="btn btn-ghost filter-btn" data-status="available" type="button">Disponibles</button>
             <button class="btn btn-ghost filter-btn" data-status="in_progress" type="button">En curso</button>
             <button class="btn btn-ghost filter-btn" data-status="completed" type="button">Completados</button>
+            <select id="campaign-filter" style="max-width:280px"></select>
             <input type="search" id="client-search" placeholder="Buscar nombre o cédula" style="max-width:240px">
           </div>
           <div id="pool-alert" class="alert hidden"></div>
@@ -55,6 +57,20 @@
         <div id="client-details" class="panel hidden" style="margin-top:16px"></div>
       </section>
 
+      <section id="view-campaigns" class="hidden">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Bases</div>
+            <h1>Campañas</h1>
+          </div>
+        </div>
+        <div class="panel">
+          <p class="muted">Cada CSV es una campaña. Solo una está activa y es la que reciben los asesores.</p>
+          <div id="campaign-alert" class="alert hidden" style="margin-top:12px"></div>
+          <div id="campaign-table" style="margin-top:16px"></div>
+        </div>
+      </section>
+
       <section id="view-import" class="hidden">
         <div class="topbar">
           <div>
@@ -63,13 +79,17 @@
           </div>
         </div>
         <div class="panel stack">
-          <p class="muted">Sube un CSV. Indica el nombre o el identificador y las columnas de teléfono. Los clientes nuevos entran al pool compartido como disponibles.</p>
+          <p class="muted">Sube un CSV. Cada archivo crea una campaña nueva. Si ya hay una activa, la nueva queda inactiva hasta que la actives.</p>
           <form id="preview-form" class="toolbar">
             <input type="file" name="file" accept=".csv,text/csv" required>
             <button class="btn btn-primary" type="submit">Previsualizar CSV</button>
           </form>
           <div id="import-alert" class="alert hidden"></div>
           <form id="mapping-form" class="stack hidden">
+            <label class="field">
+              <span>Nombre de la campaña</span>
+              <input id="campaign-name" maxlength="120" required>
+            </label>
             <div class="map-grid" id="mapping-fields"></div>
             <div>
               <div class="muted" style="margin-bottom:8px">Columnas de teléfono</div>
@@ -79,7 +99,7 @@
               <div class="muted" style="margin-bottom:8px">Campos extra</div>
               <div class="phone-map" id="extra-columns"></div>
             </div>
-            <button class="btn btn-ok" type="submit">Importar al pool</button>
+            <button class="btn btn-ok" type="submit">Importar campaña</button>
           </form>
         </div>
       </section>

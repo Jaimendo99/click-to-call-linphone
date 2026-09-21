@@ -103,7 +103,7 @@ function renderClient(client, flash) {
   }
 
   stage.append(
-    el('div', { class: 'eyebrow', text: 'Cliente actual' }),
+    el('div', { class: 'eyebrow', text: client.campaign?.name || 'Cliente actual' }),
     el('h1', { class: 'client-name', text: client.name }),
     el('div', { class: 'meta-grid' }, [
       client.external_id ? el('span', { class: 'mono', text: client.external_id }) : null,

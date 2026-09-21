@@ -6,6 +6,7 @@ const state = {
   q: '',
   page: 1,
   selectedId: null,
+  campaignId: '',
 };
 
 const whoami = document.getElementById('whoami');
@@ -14,6 +15,8 @@ const clientTable = document.getElementById('client-table');
 const clientDetails = document.getElementById('client-details');
 const poolAlert = document.getElementById('pool-alert');
 const importAlert = document.getElementById('import-alert');
+const campaignAlert = document.getElementById('campaign-alert');
+const campaignFilter = document.getElementById('campaign-filter');
 const userAlert = document.getElementById('user-alert');
 const pageLabel = document.getElementById('page-label');
 const mappingForm = document.getElementById('mapping-form');
@@ -33,11 +36,21 @@ document.querySelectorAll('.nav-btn').forEach((button) => {
     button.classList.add('active');
     const view = button.dataset.view;
     document.getElementById('view-pool').classList.toggle('hidden', view !== 'pool');
+    document.getElementById('view-campaigns').classList.toggle('hidden', view !== 'campaigns');
     document.getElementById('view-import').classList.toggle('hidden', view !== 'import');
     document.getElementById('view-users').classList.toggle('hidden', view !== 'users');
     if (view === 'users') loadUsers();
     if (view === 'pool') loadPool();
+    if (view === 'campaigns') loadCampaigns();
   });
+});
+
+campaignFilter.addEventListener('change', () => {
+  state.campaignId = campaignFilter.value;
+  state.page = 1;
+  state.selectedId = null;
+  clientDetails.classList.add('hidden');
+  loadPool();
 });
 
 document.querySelectorAll('.filter-btn').forEach((button) => {
@@ -85,6 +98,7 @@ mappingForm.addEventListener('submit', async (event) => {
     const result = await api('/api/admin/import/commit', {
       method: 'POST',
       body: {
+        name: document.getElementById('campaign-name').value,
         mapping: {
           name: document.getElementById('map-name').value || null,
           external_id: document.getElementById('map-external').value || null,
@@ -94,11 +108,15 @@ mappingForm.addEventListener('submit', async (event) => {
       },
     });
     mappingForm.classList.add('hidden');
+    const activeNote = result.campaign?.active
+      ? 'Quedó activa.'
+      : 'Quedó inactiva hasta que la actives.';
     showAlert(
       importAlert,
-      `Importados: ${result.summary.imported}. Duplicados omitidos: ${result.summary.skippedDuplicate}. Sin teléfono: ${result.summary.skippedNoPhone}.`,
+      `Campaña ${result.campaign?.name || ''}. Importados: ${result.summary.imported}. Duplicados omitidos: ${result.summary.skippedDuplicate}. Sin teléfono: ${result.summary.skippedNoPhone}. ${activeNote}`,
       'ok'
     );
+    state.campaignId = result.campaign?.id ? String(result.campaign.id) : state.campaignId;
     loadPool();
   } catch (error) {
     showAlert(importAlert, error.message);
@@ -169,15 +187,110 @@ function renderMapping(preview) {
     );
   });
 
+  const nameInput = document.getElementById('campaign-name');
+  const filename = String(preview.filename || 'Campaña').replace(/\.csv$/i, '');
+  nameInput.value = filename.slice(0, 120);
   mappingForm.classList.remove('hidden');
+}
+
+async function loadCampaignOptions() {
+  const { campaigns } = await api('/api/admin/campaigns');
+  if (!state.campaignId) {
+    const active = campaigns.find((campaign) => campaign.active);
+    state.campaignId = active ? String(active.id) : '';
+  }
+  clear(campaignFilter);
+  if (!campaigns.length) {
+    campaignFilter.append(el('option', { value: '', text: 'Sin campañas' }));
+    return;
+  }
+  campaigns.forEach((campaign) => {
+    campaignFilter.append(
+      el('option', {
+        value: String(campaign.id),
+        text: campaign.active ? `${campaign.name} (activa)` : campaign.name,
+        selected: String(campaign.id) === String(state.campaignId),
+      })
+    );
+  });
+  if (!campaignFilter.value && campaigns[0]) {
+    state.campaignId = String(campaigns[0].id);
+    campaignFilter.value = state.campaignId;
+  }
+}
+
+async function loadCampaigns() {
+  hideAlert(campaignAlert);
+  const { campaigns } = await api('/api/admin/campaigns');
+  const table = el('table', {}, [
+    el('thead', {}, [
+      el('tr', {}, [
+        el('th', { text: 'Campaña' }),
+        el('th', { text: 'Estado' }),
+        el('th', { text: 'Disponibles' }),
+        el('th', { text: 'En curso' }),
+        el('th', { text: 'Completados' }),
+        el('th', { text: '' }),
+      ]),
+    ]),
+  ]);
+  const tbody = el('tbody');
+  if (!campaigns.length) {
+    tbody.append(
+      el('tr', {}, [
+        el('td', { colspan: '6', class: 'muted', text: 'Todavía no hay campañas. Importa un CSV.' }),
+      ])
+    );
+  }
+  campaigns.forEach((campaign) => {
+    tbody.append(
+      el('tr', {}, [
+        el('td', {}, [
+          el('strong', { text: campaign.name }),
+          el('div', { class: 'muted', text: campaign.created_at || '' }),
+        ]),
+        el('td', { text: campaign.active ? 'Activa' : 'Inactiva' }),
+        el('td', { text: String(campaign.available) }),
+        el('td', { text: String(campaign.in_progress) }),
+        el('td', { text: String(campaign.completed) }),
+        el('td', {}, [
+          campaign.active
+            ? null
+            : el('button', {
+                class: 'btn btn-primary',
+                type: 'button',
+                text: 'Activar',
+                onClick: () => activateCampaign(campaign.id),
+              }),
+        ]),
+      ])
+    );
+  });
+  table.append(tbody);
+  clear(document.getElementById('campaign-table')).append(table);
+}
+
+async function activateCampaign(id) {
+  hideAlert(campaignAlert);
+  try {
+    const result = await api(`/api/admin/campaigns/${id}/activate`, { method: 'POST' });
+    showAlert(campaignAlert, `${result.campaign.name} quedó activa.`, 'ok');
+    state.campaignId = String(id);
+    await loadCampaigns();
+    await loadPool();
+  } catch (error) {
+    showAlert(campaignAlert, error.message);
+  }
 }
 
 async function loadPool() {
   hideAlert(poolAlert);
+  await loadCampaignOptions();
   const query = new URLSearchParams({
     status: state.status,
     q: state.q,
     page: String(state.page),
+    campaignId: state.campaignId,
   });
   const [counts, list] = await Promise.all([
     api('/api/admin/clients/summary'),
@@ -308,6 +421,7 @@ async function loadClient(id) {
         : null,
     ]),
     el('div', { class: 'meta-grid' }, [
+      client.campaign?.name ? el('span', { text: client.campaign.name }) : null,
       pill(client.status),
       el('span', { text: client.advisor ? `Asesor: ${client.advisor.name}` : 'Sin asignar' }),
       client.assigned_at ? el('span', { text: `Asignado: ${client.assigned_at}` }) : null,

@@ -56,8 +56,11 @@ test('SQLite worker connections cannot claim the same client', async () => {
     `INSERT INTO users (name, username, password_hash, role, active)
      VALUES (?, ?, ?, 'advisor', 1)`
   );
+  const campaign = db
+    .prepare(`INSERT INTO campaigns (name, active) VALUES ('Prueba', 1)`)
+    .run();
   const insertClient = db.prepare(
-    `INSERT INTO clients (external_id, name, status) VALUES (?, ?, 'available')`
+    `INSERT INTO clients (campaign_id, external_id, name, status) VALUES (?, ?, ?, 'available')`
   );
   const insertPhone = db.prepare(
     `INSERT INTO phone_numbers (client_id, number, sort_order) VALUES (?, ?, 1)`
@@ -69,7 +72,7 @@ test('SQLite worker connections cannot claim the same client', async () => {
     advisorIds.push(Number(result.lastInsertRowid));
   }
   for (let i = 1; i <= 8; i += 1) {
-    const result = insertClient.run(`x${i}`, `Client ${i}`);
+    const result = insertClient.run(campaign.lastInsertRowid, `x${i}`, `Client ${i}`);
     insertPhone.run(result.lastInsertRowid, `+59399000000${i}`);
   }
 

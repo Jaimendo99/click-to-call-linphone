@@ -108,6 +108,8 @@ ADMIN_PASSWORD=choose-a-strong-password
 
 The production database starts empty. Create advisors and import the CSV in the admin UI. Linphone stays on each advisor's computer, not on the server.
 
+On the next deploy, the app migrates `/app/data/app.db` before it serves traffic. Existing clients move into an active campaign named **Importación inicial**. Users, phone numbers, assignments, and call history stay. Copy the `agendial-data` volume in Dokploy before that deploy. If the migration finds a repeated account, it stops and leaves the file unchanged.
+
 To change the architecture later, edit `docker-compose.yml`, push, and deploy again. Keep the volume name `agendial-data` if the SQLite file should be preserved.
 
 Advisors must use a desktop browser on a machine that has Linphone installed. Click-to-call will not work from a phone.
@@ -141,8 +143,9 @@ The SIP registrar, proxy, and codecs stay in Linphone. This app only launches th
 ### Admin
 
 - **Users** — create Admin or Advisor accounts, activate/deactivate, reset passwords.
-- **CSV import** — upload a file, map name/id and phone columns, import. New clients enter the pool as Available. Duplicate `client_id` values are skipped. Clients with no valid phone numbers are skipped.
-- **Client pool** — counts plus a table of Available / In Progress / Completed, current advisor, and phone progress.
+- **CSV import** — upload a file, name the campaign, map name/id and phone columns, import. Each file becomes its own campaign. The first campaign is active. Later ones stay inactive until an admin activates them. Duplicate `client_id` values inside the same campaign are skipped. The same id can exist in another campaign. Clients with no valid phone numbers are skipped.
+- **Campaigns** — one campaign is active. Advisors only receive new clients from that campaign. Activating another one does not take away a client already in progress.
+- **Client pool** — counts plus a table for the selected campaign (the active one by default): Available / In Progress / Completed, current advisor, and phone progress.
 - **Client details** — extra fields, phone state, full call-attempt history. **Return to pool** clears assignment for an In Progress client and does not delete history.
 
 A sample file is included: `sample-clients.csv`.
@@ -157,7 +160,7 @@ Phone numbers are stored as separate rows, not as `phone_1` / `phone_2` fields.
 The operational extract (`NUMERO`, `CLIENTE`, `Cuenta Contrato`, `numeros_contacto`) maps automatically:
 
 - `CLIENTE` is the name
-- `Cuenta Contrato` is the client id, so each contract is one queue item and a second import does not duplicate it
+- `Cuenta Contrato` is the client id. Inside one campaign each contract is one queue item, so importing that campaign's file again does not duplicate it
 - `NUMERO` and every value inside `numeros_contacto` become separate phone rows. Values split on `|`
 - `0995606551`, `995606551`, and `+593995606551` are stored and dialed as `0995606551`. The local PBX rejects the `+593` form.
 - rows with no usable number are skipped
@@ -170,7 +173,7 @@ Feedback is saved per phone number after each call, including when one client ha
 The advisor works from one screen:
 
 1. Sign in.
-2. The current client is restored, or the next Available client is claimed.
+2. The current client is restored, or the next Available client from the active campaign is claimed.
 3. Click **Call** on a number. Linphone comes to the foreground and dials.
 4. Choose a result (`No contesta`, `Contestó`, `Número equivocado`, `Volver a llamar`, `No interesado`, `Interesado`, `Desconectado / inválido`) and save.
 5. Repeat for every number.
@@ -181,7 +184,8 @@ If the pool is empty, the screen shows: **No hay clientes disponibles.**
 ## Data model
 
 - `users` — hashed passwords (`bcrypt`), role `admin` | `advisor`
-- `clients` — `available` | `in_progress` | `completed`, assigned advisor, extra CSV fields as JSON
+- `campaigns` — one import each. Only one row can be active
+- `clients` — `available` | `in_progress` | `completed`, campaign, assigned advisor, extra CSV fields as JSON
 - `phone_numbers` — one row per number, latest status/result
 - `call_attempts` — append-only history per call
 

@@ -8,21 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS campaigns (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  filename TEXT,
-  active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0, 1)),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_campaign
-  ON campaigns(active)
-  WHERE active = 1;
-
 CREATE TABLE IF NOT EXISTS clients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
   external_id TEXT,
   name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'available'
@@ -34,8 +21,8 @@ CREATE TABLE IF NOT EXISTS clients (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_campaign_external_id
-  ON clients(campaign_id, external_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_external_id
+  ON clients(external_id)
   WHERE external_id IS NOT NULL AND TRIM(external_id) != '';
 
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);

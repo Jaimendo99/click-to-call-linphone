@@ -1,3 +1,4 @@
+import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import multer from 'multer';
@@ -27,9 +28,30 @@ const upload = multer({
   },
 });
 
-function clientListQuery(db, { status, q, page, pageSize }) {
-  const where = [];
-  const params = [];
+function campaignNameFromFilename(filename) {
+  const base = path.basename(String(filename || 'Campaña')).replace(/\.csv$/i, '');
+  return base.trim().slice(0, 120) || 'Campaña';
+}
+
+function campaignFilterId(db, raw) {
+  if (raw != null && String(raw).trim() !== '') {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id < 1) return { error: 'Campaña inválida' };
+    const row = db.prepare('SELECT id FROM campaigns WHERE id = ?').get(id);
+    if (!row) return { error: 'Campaña no encontrada' };
+    return { id };
+  }
+  const active = db.prepare('SELECT id FROM campaigns WHERE active = 1').get();
+  return { id: active?.id ?? null };
+}
+
+function clientListQuery(db, { status, q, page, pageSize, campaignId }) {
+  if (campaignId == null) {
+    return { total: 0, rows: [], page, pageSize };
+  }
+
+  const where = ['c.campaign_id = ?'];
+  const params = [campaignId];
 
   if (status && Object.values(CLIENT_STATUS).includes(status)) {
     where.push('c.status = ?');
@@ -59,9 +81,11 @@ function clientListQuery(db, { status, q, page, pageSize }) {
          c.created_at,
          u.name AS advisor_name,
          u.username AS advisor_username,
+         k.name AS campaign_name,
          (SELECT COUNT(*) FROM phone_numbers p WHERE p.client_id = c.id) AS phone_total,
          (SELECT COUNT(*) FROM phone_numbers p WHERE p.client_id = c.id AND p.last_result IS NOT NULL) AS phone_done
        FROM clients c
+       JOIN campaigns k ON k.id = c.campaign_id
        LEFT JOIN users u ON u.id = c.assigned_advisor_id
        ${whereSql}
        ORDER BY
@@ -264,9 +288,16 @@ export function createAdminRouter(db) {
       return;
     }
 
+    const requestedName = String(req.body?.name || '').trim();
+    const campaignName = (requestedName || campaignNameFromFilename(preview.filename)).slice(0, 120);
+    if (!campaignName) {
+      res.status(400).json({ error: 'El nombre de la campaña es obligatorio' });
+      return;
+    }
+
     const insertClient = db.prepare(
-      `INSERT INTO clients (external_id, name, status, extra_data)
-       VALUES (?, ?, 'available', ?)`
+      `INSERT INTO clients (campaign_id, external_id, name, status, extra_data)
+       VALUES (?, ?, ?, 'available', ?)`
     );
     const insertPhone = db.prepare(
       `INSERT INTO phone_numbers (client_id, number, sort_order)
@@ -274,7 +305,7 @@ export function createAdminRouter(db) {
     );
     const existsExternal = db.prepare(
       `SELECT id FROM clients
-       WHERE external_id = ? AND TRIM(external_id) != ''`
+       WHERE campaign_id = ? AND external_id = ? AND TRIM(external_id) != ''`
     );
 
     const summary = {
@@ -284,7 +315,18 @@ export function createAdminRouter(db) {
       skippedNoName: 0,
     };
 
+    let campaign = null;
     const importTxn = db.transaction(() => {
+      const hasActive = db.prepare('SELECT id FROM campaigns WHERE active = 1').get();
+      const created = db
+        .prepare('INSERT INTO campaigns (name, filename, active) VALUES (?, ?, ?)')
+        .run(campaignName, preview.filename || null, hasActive ? 0 : 1);
+      campaign = {
+        id: Number(created.lastInsertRowid),
+        name: campaignName,
+        active: hasActive ? 0 : 1,
+      };
+
       for (const row of preview.rows) {
         const externalId = cell(row, externalIdColumn) || null;
         const name =
@@ -294,7 +336,7 @@ export function createAdminRouter(db) {
           continue;
         }
         if (externalId) {
-          const existing = existsExternal.get(externalId);
+          const existing = existsExternal.get(campaign.id, externalId);
           if (existing) {
             summary.skippedDuplicate += 1;
             continue;
@@ -314,6 +356,7 @@ export function createAdminRouter(db) {
         }
 
         const result = insertClient.run(
+          campaign.id,
           externalId,
           name.slice(0, 200),
           JSON.stringify(extra)
@@ -327,21 +370,79 @@ export function createAdminRouter(db) {
 
     importTxn.immediate();
     req.session.importPreview = null;
-    res.json({ ok: true, summary });
+    res.json({ ok: true, summary, campaign });
   });
 
-  router.get('/clients/summary', (_req, res) => {
-    const counts = db
+  router.get('/campaigns', (_req, res) => {
+    const campaigns = db
       .prepare(
         `SELECT
-           COUNT(*) AS total,
-           SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS available,
-           SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
-           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed
-         FROM clients`
+           k.id,
+           k.name,
+           k.filename,
+           k.active,
+           k.created_at,
+           COUNT(c.id) AS total,
+           COALESCE(SUM(CASE WHEN c.status = 'available' THEN 1 ELSE 0 END), 0) AS available,
+           COALESCE(SUM(CASE WHEN c.status = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress,
+           COALESCE(SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed
+         FROM campaigns k
+         LEFT JOIN clients c ON c.campaign_id = k.id
+         GROUP BY k.id
+         ORDER BY k.active DESC, k.id DESC`
       )
-      .get();
+      .all()
+      .map((campaign) => ({
+        ...campaign,
+        active: campaign.active === 1,
+      }));
+    res.json({ campaigns });
+  });
+
+  router.post('/campaigns/:id/activate', (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ error: 'Identificador de campaña inválido' });
+      return;
+    }
+
+    const activate = db.transaction(() => {
+      const campaign = db.prepare('SELECT id, name FROM campaigns WHERE id = ?').get(id);
+      if (!campaign) return null;
+      db.prepare('UPDATE campaigns SET active = 0 WHERE active = 1').run();
+      db.prepare('UPDATE campaigns SET active = 1 WHERE id = ?').run(id);
+      return campaign;
+    });
+
+    const campaign = activate();
+    if (!campaign) {
+      res.status(404).json({ error: 'Campaña no encontrada' });
+      return;
+    }
+    res.json({ campaign: { id: campaign.id, name: campaign.name, active: true } });
+  });
+
+  router.get('/clients/summary', (req, res) => {
+    const filter = campaignFilterId(db, req.query.campaignId);
+    if (filter.error) {
+      res.status(400).json({ error: filter.error });
+      return;
+    }
+    const counts = filter.id == null
+      ? { total: 0, available: 0, in_progress: 0, completed: 0 }
+      : db
+          .prepare(
+            `SELECT
+               COUNT(*) AS total,
+               SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) AS available,
+               SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+               SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed
+             FROM clients
+             WHERE campaign_id = ?`
+          )
+          .get(filter.id);
     res.json({
+      campaignId: filter.id,
       total: counts.total || 0,
       available: counts.available || 0,
       in_progress: counts.in_progress || 0,
@@ -350,11 +451,16 @@ export function createAdminRouter(db) {
   });
 
   router.get('/clients', (req, res) => {
+    const filter = campaignFilterId(db, req.query.campaignId);
+    if (filter.error) {
+      res.status(400).json({ error: filter.error });
+      return;
+    }
     const status = String(req.query.status || '').trim();
     const q = String(req.query.q || '').trim().slice(0, 80);
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.min(100, Math.max(10, Number(req.query.pageSize) || 50));
-    res.json(clientListQuery(db, { status, q, page, pageSize }));
+    res.json(clientListQuery(db, { status, q, page, pageSize, campaignId: filter.id }));
   });
 
   router.get('/clients/:id', (req, res) => {
@@ -369,6 +475,10 @@ export function createAdminRouter(db) {
       res.status(404).json({ error: 'Cliente no encontrado' });
       return;
     }
+
+    const campaign = client.campaign_id
+      ? db.prepare('SELECT id, name, active FROM campaigns WHERE id = ?').get(client.campaign_id)
+      : null;
 
     const advisor = client.assigned_advisor_id
       ? db
@@ -407,6 +517,10 @@ export function createAdminRouter(db) {
     res.json({
       client: {
         id: client.id,
+        campaign_id: client.campaign_id,
+        campaign: campaign
+          ? { id: campaign.id, name: campaign.name, active: campaign.active === 1 }
+          : null,
         external_id: client.external_id,
         name: client.name,
         status: client.status,
