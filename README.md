@@ -175,7 +175,7 @@ The advisor works from one screen:
 1. Sign in.
 2. The current client is restored, or the next Available client from the active campaign is claimed.
 3. Click **Call** on a number. Linphone comes to the foreground and dials.
-4. Choose a result (`No contesta`, `Contestó`, `Número equivocado`, `Volver a llamar`, `No interesado`, `Interesado`, `Desconectado / inválido`) and save.
+4. Choose a result (`No contesta`, `Buzón`, `Contestó`, `Número equivocado`, `Volver a llamar`, `No interesado`, `Interesado`, `Desconectado / inválido`) and save.
 5. Repeat for every number.
 6. The client completes and the next client appears. The advisor never picks a client id.
 

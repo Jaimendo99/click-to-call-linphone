@@ -17,6 +17,7 @@ export const PHONE_STATUS = {
 
 export const CALL_RESULTS = [
   'No contesta',
+  'Buzón',
   'Contestó',
   'Número equivocado',
   'Volver a llamar',
