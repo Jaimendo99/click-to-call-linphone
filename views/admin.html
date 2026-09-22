@@ -21,6 +21,7 @@
       <nav class="stack">
         <button class="nav-btn active" data-view="pool" type="button">Pool de clientes</button>
         <button class="nav-btn" data-view="campaigns" type="button">Campañas</button>
+        <button class="nav-btn" data-view="results" type="button">Resultados</button>
         <button class="nav-btn" data-view="import" type="button">Importar CSV</button>
         <button class="nav-btn" data-view="users" type="button">Usuarios</button>
       </nav>
@@ -70,6 +71,20 @@
           <div id="campaign-alert" class="alert hidden" style="margin-top:12px"></div>
           <div id="campaign-table" style="margin-top:16px"></div>
         </div>
+      </section>
+
+      <section id="view-results" class="hidden">
+        <div class="topbar">
+          <div>
+            <div class="eyebrow">Campaña</div>
+            <h1>Resultados</h1>
+          </div>
+          <select id="results-campaign" style="max-width:320px"></select>
+        </div>
+        <p class="muted">Clientes con al menos una llamada, números marcados y el resultado que eligió el asesor en cada una.</p>
+        <div id="results-alert" class="alert hidden" style="margin-top:12px"></div>
+        <div class="stats stats-3" id="results-summary" style="margin-top:16px"></div>
+        <div class="panel" id="results-breakdown"></div>
       </section>
 
       <section id="view-import" class="hidden">

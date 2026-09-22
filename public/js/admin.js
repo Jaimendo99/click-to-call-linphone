@@ -17,6 +17,10 @@ const poolAlert = document.getElementById('pool-alert');
 const importAlert = document.getElementById('import-alert');
 const campaignAlert = document.getElementById('campaign-alert');
 const campaignFilter = document.getElementById('campaign-filter');
+const resultsAlert = document.getElementById('results-alert');
+const resultsCampaign = document.getElementById('results-campaign');
+const resultsSummary = document.getElementById('results-summary');
+const resultsBreakdown = document.getElementById('results-breakdown');
 const userAlert = document.getElementById('user-alert');
 const pageLabel = document.getElementById('page-label');
 const mappingForm = document.getElementById('mapping-form');
@@ -37,12 +41,19 @@ document.querySelectorAll('.nav-btn').forEach((button) => {
     const view = button.dataset.view;
     document.getElementById('view-pool').classList.toggle('hidden', view !== 'pool');
     document.getElementById('view-campaigns').classList.toggle('hidden', view !== 'campaigns');
+    document.getElementById('view-results').classList.toggle('hidden', view !== 'results');
     document.getElementById('view-import').classList.toggle('hidden', view !== 'import');
     document.getElementById('view-users').classList.toggle('hidden', view !== 'users');
     if (view === 'users') loadUsers();
     if (view === 'pool') loadPool();
     if (view === 'campaigns') loadCampaigns();
+    if (view === 'results') loadResults();
   });
+});
+
+resultsCampaign.addEventListener('change', () => {
+  state.campaignId = resultsCampaign.value;
+  loadResults();
 });
 
 campaignFilter.addEventListener('change', () => {
@@ -254,20 +265,112 @@ async function loadCampaigns() {
         el('td', { text: String(campaign.in_progress) }),
         el('td', { text: String(campaign.completed) }),
         el('td', {}, [
-          campaign.active
-            ? null
-            : el('button', {
-                class: 'btn btn-primary',
-                type: 'button',
-                text: 'Activar',
-                onClick: () => activateCampaign(campaign.id),
-              }),
+          el('div', { class: 'row-actions' }, [
+            el('button', {
+              class: 'btn btn-ghost',
+              type: 'button',
+              text: 'Resultados',
+              onClick: () => openCampaignResults(campaign.id),
+            }),
+            campaign.active
+              ? null
+              : el('button', {
+                  class: 'btn btn-primary',
+                  type: 'button',
+                  text: 'Activar',
+                  onClick: () => activateCampaign(campaign.id),
+                }),
+          ]),
         ]),
       ])
     );
   });
   table.append(tbody);
   clear(document.getElementById('campaign-table')).append(table);
+}
+
+function openCampaignResults(id) {
+  state.campaignId = String(id);
+  document.querySelector('.nav-btn[data-view="results"]').click();
+}
+
+function fillCampaignSelect(select, campaigns) {
+  clear(select);
+  if (!campaigns.length) {
+    select.append(el('option', { value: '', text: 'Sin campañas' }));
+    return;
+  }
+  if (!state.campaignId || !campaigns.some((campaign) => String(campaign.id) === String(state.campaignId))) {
+    const active = campaigns.find((campaign) => campaign.active);
+    state.campaignId = String((active || campaigns[0]).id);
+  }
+  campaigns.forEach((campaign) => {
+    select.append(
+      el('option', {
+        value: String(campaign.id),
+        text: campaign.active ? `${campaign.name} (activa)` : campaign.name,
+        selected: String(campaign.id) === String(state.campaignId),
+      })
+    );
+  });
+}
+
+async function loadResults() {
+  hideAlert(resultsAlert);
+  clear(resultsSummary);
+  clear(resultsBreakdown);
+  try {
+    const { campaigns } = await api('/api/admin/campaigns');
+    fillCampaignSelect(resultsCampaign, campaigns);
+    if (!campaigns.length) {
+      resultsBreakdown.append(
+        el('p', { class: 'muted', text: 'Todavía no hay campañas. Importa un CSV para ver resultados.' })
+      );
+      return;
+    }
+
+    const data = await api(`/api/admin/campaigns/${state.campaignId}/results`);
+    [
+      ['Clientes contactados', data.clients.contacted, `de ${data.clients.total} en la campaña`],
+      ['Números llamados', data.phones.called, `de ${data.phones.total} en la campaña`],
+      ['Llamadas registradas', data.attempts, 'cada resultado elegido'],
+    ].forEach(([title, value, note]) => {
+      resultsSummary.append(
+        el('div', { class: 'stat' }, [
+          el('span', { class: 'muted', text: title }),
+          el('b', { text: String(value) }),
+          el('span', { class: 'stat-note', text: note }),
+        ])
+      );
+    });
+
+    resultsBreakdown.append(el('h2', { text: 'Resultados elegidos' }));
+    if (!data.results.length) {
+      resultsBreakdown.append(
+        el('p', { class: 'muted', text: 'Esta campaña todavía no tiene llamadas registradas.', style: 'margin-top:12px' })
+      );
+      return;
+    }
+
+    const list = el('div', { class: 'result-list' });
+    data.results.forEach((item) => {
+      const share = data.attempts ? Math.round((item.count / data.attempts) * 100) : 0;
+      list.append(
+        el('div', {}, [
+          el('div', { class: 'result-meta' }, [
+            el('span', { text: label(item.result) }),
+            el('strong', { text: `${item.count} · ${share}%` }),
+          ]),
+          el('div', { class: 'result-track' }, [
+            el('div', { class: 'result-fill', style: `width:${share}%` }),
+          ]),
+        ])
+      );
+    });
+    resultsBreakdown.append(list);
+  } catch (error) {
+    showAlert(resultsAlert, error.message);
+  }
 }
 
 async function activateCampaign(id) {

@@ -2,7 +2,7 @@ import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import multer from 'multer';
-import { CLIENT_STATUS, MAX_CSV_BYTES, ROLES } from '../lib/constants.js';
+import { CALL_RESULTS, CLIENT_STATUS, MAX_CSV_BYTES, ROLES } from '../lib/constants.js';
 import { parseCsvBuffer, guessMapping, cell, extractPhoneEntries, originHeader } from '../lib/csv.js';
 import { parseJson } from '../db.js';
 import { publicUser, requireAdmin } from '../middleware/auth.js';
@@ -419,6 +419,90 @@ export function createAdminRouter(db) {
         active: campaign.active === 1,
       }));
     res.json({ campaigns });
+  });
+
+  router.get('/campaigns/:id/results', (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ error: 'Identificador de campaña inválido' });
+      return;
+    }
+
+    const campaign = db
+      .prepare('SELECT id, name, active, created_at FROM campaigns WHERE id = ?')
+      .get(id);
+    if (!campaign) {
+      res.status(404).json({ error: 'Campaña no encontrada' });
+      return;
+    }
+
+    const totals = db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM clients WHERE campaign_id = ?) AS clients_total,
+           (SELECT COUNT(DISTINCT c.id)
+              FROM clients c
+              JOIN phone_numbers p ON p.client_id = c.id
+              JOIN call_attempts a ON a.phone_number_id = p.id
+              WHERE c.campaign_id = ?) AS clients_contacted,
+           (SELECT COUNT(*)
+              FROM phone_numbers p
+              JOIN clients c ON c.id = p.client_id
+              WHERE c.campaign_id = ?) AS phones_total,
+           (SELECT COUNT(DISTINCT p.id)
+              FROM phone_numbers p
+              JOIN clients c ON c.id = p.client_id
+              JOIN call_attempts a ON a.phone_number_id = p.id
+              WHERE c.campaign_id = ?) AS phones_called,
+           (SELECT COUNT(*)
+              FROM call_attempts a
+              JOIN phone_numbers p ON p.id = a.phone_number_id
+              JOIN clients c ON c.id = p.client_id
+              WHERE c.campaign_id = ?) AS attempts`
+      )
+      .get(id, id, id, id, id);
+
+    const counts = new Map(
+      db
+        .prepare(
+          `SELECT a.result AS result, COUNT(*) AS count
+           FROM call_attempts a
+           JOIN phone_numbers p ON p.id = a.phone_number_id
+           JOIN clients c ON c.id = p.client_id
+           WHERE c.campaign_id = ?
+           GROUP BY a.result`
+        )
+        .all(id)
+        .map((row) => [row.result, row.count])
+    );
+
+    const known = CALL_RESULTS.filter((result) => counts.has(result));
+    const extra = [...counts.keys()]
+      .filter((result) => !CALL_RESULTS.includes(result))
+      .sort((a, b) => a.localeCompare(b, 'es'));
+    const results = [...known, ...extra].map((result) => ({
+      result,
+      count: counts.get(result),
+    }));
+
+    res.json({
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        active: campaign.active === 1,
+        createdAt: campaign.created_at,
+      },
+      clients: {
+        total: totals.clients_total || 0,
+        contacted: totals.clients_contacted || 0,
+      },
+      phones: {
+        total: totals.phones_total || 0,
+        called: totals.phones_called || 0,
+      },
+      attempts: totals.attempts || 0,
+      results,
+    });
   });
 
   router.post('/campaigns/:id/activate', (req, res) => {
