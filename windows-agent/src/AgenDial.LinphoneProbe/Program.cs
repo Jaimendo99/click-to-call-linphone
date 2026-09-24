@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -23,6 +24,18 @@ namespace AgenDial.LinphoneProbe
 
                 // Sin archivo de configuración: la sonda no carga ni guarda cuentas.
                 var factory = NativeMethods.FactoryGet();
+                var resourcesDirectory = Path.Combine(AppContext.BaseDirectory, "share");
+                var vcardGrammarPath = Path.Combine(resourcesDirectory, "belr", "grammars", "vcard_grammar.belr");
+                if (!File.Exists(vcardGrammarPath))
+                {
+                    throw new FileNotFoundException(
+                        "Faltan los recursos de Liblinphone junto a la sonda.",
+                        vcardGrammarPath);
+                }
+
+                NativeMethods.FactorySetTopResourcesDir(factory, resourcesDirectory);
+                Console.WriteLine("Recursos SDK: " + resourcesDirectory);
+
                 core = NativeMethods.FactoryCreateCore3(factory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
                 if (core == IntPtr.Zero)
                 {
@@ -185,6 +198,12 @@ namespace AgenDial.LinphoneProbe
             [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
                 EntryPoint = "linphone_factory_get")]
             internal static extern IntPtr FactoryGet();
+
+            [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
+                EntryPoint = "linphone_factory_set_top_resources_dir")]
+            internal static extern void FactorySetTopResourcesDir(
+                IntPtr factory,
+                [MarshalAs(UnmanagedType.LPUTF8Str)] string path);
 
             [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
                 EntryPoint = "linphone_factory_create_core_3")]

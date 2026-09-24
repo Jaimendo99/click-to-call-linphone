@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <!-- The 5.5.2 package contains native Windows x64 DLLs but no CsWrapper.dll. -->
-  <Target Name="RemoveMissingLinphoneManagedWrapper" AfterTargets="InjectReference" BeforeTargets="ResolveAssemblyReferences">
+  <Target Name="RemoveMissingLinphoneManagedWrapper" BeforeTargets="ResolveAssemblyReferences" DependsOnTargets="InjectReference">
     <ItemGroup>
       <Reference Remove="LinphoneSDK.Windows" />
     </ItemGroup>
