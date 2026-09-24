@@ -29,6 +29,14 @@ const phoneColumns = document.getElementById('phone-columns');
 const extraColumns = document.getElementById('extra-columns');
 const modalRoot = document.getElementById('modal-root');
 
+function scrollableTable(table) {
+  return el('div', { class: 'table-scroll' }, [table]);
+}
+
+function dataCell(label, attrs = {}, children = []) {
+  return el('td', { ...attrs, 'data-label': label }, children);
+}
+
 document.getElementById('logout').addEventListener('click', async () => {
   await api('/auth/logout', { method: 'POST' });
   window.location.href = '/login';
@@ -241,7 +249,7 @@ async function loadCampaigns() {
         el('th', { text: 'Disponibles' }),
         el('th', { text: 'En curso' }),
         el('th', { text: 'Completados' }),
-        el('th', { text: '' }),
+        el('th', { text: 'Acciones' }),
       ]),
     ]),
   ]);
@@ -256,15 +264,15 @@ async function loadCampaigns() {
   campaigns.forEach((campaign) => {
     tbody.append(
       el('tr', {}, [
-        el('td', {}, [
+        dataCell('Campaña', {}, [
           el('strong', { text: campaign.name }),
           el('div', { class: 'muted', text: campaign.created_at || '' }),
         ]),
-        el('td', { text: campaign.active ? 'Activa' : 'Inactiva' }),
-        el('td', { text: String(campaign.available) }),
-        el('td', { text: String(campaign.in_progress) }),
-        el('td', { text: String(campaign.completed) }),
-        el('td', {}, [
+        dataCell('Estado', { text: campaign.active ? 'Activa' : 'Inactiva' }),
+        dataCell('Disponibles', { text: String(campaign.available) }),
+        dataCell('En curso', { text: String(campaign.in_progress) }),
+        dataCell('Completados', { text: String(campaign.completed) }),
+        dataCell('Acciones', {}, [
           el('div', { class: 'row-actions' }, [
             el('button', {
               class: 'btn btn-ghost',
@@ -286,7 +294,7 @@ async function loadCampaigns() {
     );
   });
   table.append(tbody);
-  clear(document.getElementById('campaign-table')).append(table);
+  clear(document.getElementById('campaign-table')).append(scrollableTable(table));
 }
 
 function openCampaignResults(id) {
@@ -389,10 +397,12 @@ async function activateCampaign(id) {
 async function loadPool() {
   hideAlert(poolAlert);
   await loadCampaignOptions();
+  const pageSize = window.matchMedia('(max-width: 640px)').matches ? 10 : 50;
   const query = new URLSearchParams({
     status: state.status,
     q: state.q,
     page: String(state.page),
+    pageSize: String(pageSize),
     campaignId: state.campaignId,
   });
   const [counts, list] = await Promise.all([
@@ -431,21 +441,21 @@ async function loadPool() {
   const tbody = el('tbody');
   list.rows.forEach((row) => {
     const tr = el('tr', {}, [
-      el('td', {}, [
+      dataCell('Cliente', {}, [
         el('strong', { text: row.name }),
         row.external_id ? el('div', { class: 'muted mono', text: row.external_id }) : null,
       ]),
-      el('td', {}, [pill(row.status)]),
-      el('td', { text: row.advisor_name || '—' }),
-      el('td', { class: 'muted', text: row.assigned_at || '—' }),
-      el('td', { text: `${row.phone_done} / ${row.phone_total}` }),
+      dataCell('Estado', {}, [pill(row.status)]),
+      dataCell('Asesor', { text: row.advisor_name || '—' }),
+      dataCell('Asignado', { class: 'muted', text: row.assigned_at || '—' }),
+      dataCell('Números', { text: `${row.phone_done} / ${row.phone_total}` }),
     ]);
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => loadClient(row.id));
     tbody.append(tr);
   });
   table.append(tbody);
-  clear(clientTable).append(table);
+  clear(clientTable).append(scrollableTable(table));
 }
 
 async function loadClient(id) {
@@ -472,10 +482,10 @@ async function loadClient(id) {
       {},
       client.phones.map((phone) =>
         el('tr', {}, [
-          el('td', { class: 'mono', text: phone.number }),
-          el('td', {}, [pill(phone.status)]),
-          el('td', { text: label(phone.last_result) || '—' }),
-          el('td', { class: 'muted', text: phone.last_attempt_at || '—' }),
+          dataCell('Número', { class: 'mono', text: phone.number }),
+          dataCell('Estado', {}, [pill(phone.status)]),
+          dataCell('Último resultado', { text: label(phone.last_result) || '—' }),
+          dataCell('Último intento', { class: 'muted', text: phone.last_attempt_at || '—' }),
         ])
       )
     ),
@@ -497,11 +507,11 @@ async function loadClient(id) {
       client.attempts.length
         ? client.attempts.map((attempt) =>
             el('tr', {}, [
-              el('td', { class: 'muted', text: attempt.attempted_at }),
-              el('td', { class: 'mono', text: attempt.phone_number }),
-              el('td', { text: attempt.advisor_name }),
-              el('td', { text: label(attempt.result) }),
-              el('td', { text: attempt.notes || '' }),
+              dataCell('Cuándo', { class: 'muted', text: attempt.attempted_at }),
+              dataCell('Número', { class: 'mono', text: attempt.phone_number }),
+              dataCell('Asesor', { text: attempt.advisor_name }),
+              dataCell('Resultado', { text: label(attempt.result) }),
+              dataCell('Notas', { text: attempt.notes || '' }),
             ])
           )
         : [el('tr', {}, [el('td', { colspan: '5', class: 'muted', text: 'Todavía no hay intentos de llamada.' })])]
@@ -532,9 +542,9 @@ async function loadClient(id) {
     ]),
     extraItems.length ? el('div', { class: 'stack', style: 'margin-bottom:16px' }, extraItems) : null,
     el('h3', { text: 'Teléfonos', style: 'margin:12px 0' }),
-    phones,
+    scrollableTable(phones),
     el('h3', { text: 'Historial de llamadas', style: 'margin:18px 0 12px' }),
-    attempts
+    scrollableTable(attempts)
   );
 }
 
@@ -559,7 +569,7 @@ async function loadUsers() {
         el('th', { text: 'Usuario' }),
         el('th', { text: 'Rol' }),
         el('th', { text: 'Estado' }),
-        el('th', { text: '' }),
+        el('th', { text: 'Acciones' }),
       ]),
     ]),
   ]);
@@ -567,29 +577,31 @@ async function loadUsers() {
   users.forEach((user) => {
     tbody.append(
       el('tr', {}, [
-        el('td', { text: user.name }),
-        el('td', { class: 'mono', text: user.username }),
-        el('td', { text: label(user.role) }),
-        el('td', { text: user.active ? 'Activo' : 'Desactivado' }),
-        el('td', { class: 'row-actions' }, [
-          el('button', {
-            class: 'btn btn-ghost',
-            type: 'button',
-            text: user.active ? 'Desactivar' : 'Activar',
-            onClick: () => toggleUser(user),
-          }),
-          el('button', {
-            class: 'btn btn-ghost',
-            type: 'button',
-            text: 'Restablecer contraseña',
-            onClick: () => resetPassword(user),
-          }),
+        dataCell('Nombre', { text: user.name }),
+        dataCell('Usuario', { class: 'mono', text: user.username }),
+        dataCell('Rol', { text: label(user.role) }),
+        dataCell('Estado', { text: user.active ? 'Activo' : 'Desactivado' }),
+        dataCell('Acciones', {}, [
+          el('div', { class: 'row-actions' }, [
+            el('button', {
+              class: 'btn btn-ghost',
+              type: 'button',
+              text: user.active ? 'Desactivar' : 'Activar',
+              onClick: () => toggleUser(user),
+            }),
+            el('button', {
+              class: 'btn btn-ghost',
+              type: 'button',
+              text: 'Restablecer contraseña',
+              onClick: () => resetPassword(user),
+            }),
+          ]),
         ]),
       ])
     );
   });
   table.append(tbody);
-  clear(document.getElementById('users-table')).append(el('h2', { text: 'Cuentas' }), table);
+  clear(document.getElementById('users-table')).append(el('h2', { text: 'Cuentas' }), scrollableTable(table));
 }
 
 async function toggleUser(user) {
