@@ -25,13 +25,16 @@ Abre PowerShell en la raíz del repositorio:
 ```powershell
 dotnet --info
 dotnet restore .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configfile .\windows-agent\NuGet.Config
-dotnet build .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configuration Release --no-restore
+dotnet build .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configuration Release --no-restore -p:Platform=x64
 ```
 
-Si los comandos terminan correctamente, inicia la sonda:
+El `-p:Platform=x64` es necesario para que los targets de NuGet de Linphone seleccionen las bibliotecas x64. `PlatformTarget=x64` en el proyecto configura el ejecutable, pero no selecciona por sí solo la carpeta de bibliotecas del paquete.
+
+Si los comandos terminan correctamente, localiza e inicia la sonda:
 
 ```powershell
-& .\windows-agent\src\AgenDial.LinphoneProbe\bin\Release\net48\AgenDial.LinphoneProbe.exe
+$probeExe = Get-ChildItem .\windows-agent\src\AgenDial.LinphoneProbe\bin -Filter AgenDial.LinphoneProbe.exe -Recurse | Select-Object -First 1
+& $probeExe.FullName
 ```
 
 Debe imprimir `Core iniciado.`, una lista de dispositivos (o indicar que no se detectaron) y mantenerse activa. Presiona Ctrl+C; la salida esperada termina con `Core detenido correctamente.`. El proceso retorna `0` al detenerse normalmente y `1` si falla la inicialización o el cierre del Core.
@@ -43,8 +46,9 @@ Ejecuta estos comandos desde PowerShell y conserva la salida completa, sin añad
 ```powershell
 dotnet --info
 dotnet restore .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configfile .\windows-agent\NuGet.Config --verbosity diagnostic *> .\windows-agent-restore.log
-dotnet build .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configuration Release --no-restore --verbosity diagnostic *> .\windows-agent-build.log
-& .\windows-agent\src\AgenDial.LinphoneProbe\bin\Release\net48\AgenDial.LinphoneProbe.exe *> .\windows-agent-run.log
+dotnet build .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configuration Release --no-restore --verbosity diagnostic -p:Platform=x64 *> .\windows-agent-build.log
+$probeExe = Get-ChildItem .\windows-agent\src\AgenDial.LinphoneProbe\bin -Filter AgenDial.LinphoneProbe.exe -Recurse | Select-Object -First 1
+& $probeExe.FullName *> .\windows-agent-run.log
 ```
 
 Adjunta `windows-agent-restore.log`, `windows-agent-build.log` y `windows-agent-run.log`, además de la edición y versión de Windows (`winver`), arquitectura del sistema y si se detectaron dispositivos. Si falla la carga de DLL, copia también el mensaje completo de `BadImageFormatException`/`DllNotFoundException` o el código de salida. Estos logs no deberían contener secretos porque el proyecto no configura una cuenta; revísalos antes de compartirlos.
