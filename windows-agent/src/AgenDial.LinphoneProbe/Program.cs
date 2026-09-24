@@ -36,15 +36,27 @@ namespace AgenDial.LinphoneProbe
                 NativeMethods.FactorySetTopResourcesDir(factory, resourcesDirectory);
                 Console.WriteLine("Recursos SDK: " + resourcesDirectory);
 
+                var mediaPluginsDirectory = FindMediaPluginsDirectory(AppContext.BaseDirectory);
+                NativeMethods.FactorySetMspluginsDir(factory, mediaPluginsDirectory);
+                Console.WriteLine("Plugins multimedia SDK: " + mediaPluginsDirectory);
+
                 core = NativeMethods.FactoryCreateCore3(factory, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
                 if (core == IntPtr.Zero)
                 {
                     throw new InvalidOperationException("Liblinphone no pudo crear el Core.");
                 }
 
+                // Esta sonda no usa cuentas, historial ni contactos. Desactivar la base
+                // evita que el Core intente crear su DB personal de Liblinphone.
+                NativeMethods.CoreEnableDatabase(core, 0);
+
                 var startStatus = NativeMethods.CoreStart(core);
                 if (startStatus != 0)
                 {
+                    // Cuando start falla el Core puede quedar en Startup. En 5.5, liberar
+                    // ese objeto intenta una transición inválida a Shutdown (y provoca
+                    // un fatal nativo); el proceso termina inmediatamente después.
+                    core = IntPtr.Zero;
                     throw new InvalidOperationException(
                         "linphone_core_start devolvió el estado " + startStatus + ".");
                 }
@@ -142,6 +154,28 @@ namespace AgenDial.LinphoneProbe
             }
         }
 
+        private static string FindMediaPluginsDirectory(string baseDirectory)
+        {
+            var expectedDirectory = Path.Combine(baseDirectory, "mediastreamer", "plugins");
+            var expectedPlugin = Path.Combine(expectedDirectory, "libmswasapi.dll");
+            if (File.Exists(expectedPlugin))
+            {
+                return expectedDirectory;
+            }
+
+            foreach (var pluginPath in Directory.EnumerateFiles(
+                baseDirectory,
+                "libmswasapi.dll",
+                SearchOption.AllDirectories))
+            {
+                return Path.GetDirectoryName(pluginPath);
+            }
+
+            throw new FileNotFoundException(
+                "No se encontró el plugin WASAPI de Liblinphone junto a la sonda.",
+                expectedPlugin);
+        }
+
         private static string Utf8(IntPtr value)
         {
             return value == IntPtr.Zero ? "(sin dato)" : Marshal.PtrToStringUTF8(value);
@@ -206,6 +240,12 @@ namespace AgenDial.LinphoneProbe
                 [MarshalAs(UnmanagedType.LPUTF8Str)] string path);
 
             [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
+                EntryPoint = "linphone_factory_set_msplugins_dir")]
+            internal static extern void FactorySetMspluginsDir(
+                IntPtr factory,
+                [MarshalAs(UnmanagedType.LPUTF8Str)] string path);
+
+            [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
                 EntryPoint = "linphone_factory_create_core_3")]
             internal static extern IntPtr FactoryCreateCore3(
                 IntPtr factory,
@@ -216,6 +256,10 @@ namespace AgenDial.LinphoneProbe
             [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
                 EntryPoint = "linphone_core_start")]
             internal static extern int CoreStart(IntPtr core);
+
+            [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
+                EntryPoint = "linphone_core_enable_database")]
+            internal static extern void CoreEnableDatabase(IntPtr core, int enabled);
 
             [DllImport(LinphoneLibrary, CallingConvention = CallingConvention.Cdecl,
                 EntryPoint = "linphone_core_stop")]
