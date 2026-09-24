@@ -118,6 +118,7 @@ export function openDb(dbPath) {
   db.exec(schema);
   migrateDb(db);
   ensurePhoneSource(db);
+  ensurePhoneOffering(db);
   return db;
 }
 
@@ -125,6 +126,72 @@ function ensurePhoneSource(db) {
   if (!tableExists(db, 'phone_numbers')) return;
   if (columnExists(db, 'phone_numbers', 'source')) return;
   db.exec('ALTER TABLE phone_numbers ADD COLUMN source TEXT');
+}
+
+function pipeTokens(raw) {
+  return String(raw || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function phonesForOfferingBackfill(phones, offerings) {
+  if (!offerings.length || !phones.length) return [];
+  const contacto = phones.filter((phone) => phone.source === 'Contacto');
+  if (contacto.length) return contacto;
+  if (phones.length === offerings.length + 1) return phones.slice(1);
+  if (phones.length === offerings.length) return phones;
+  return [];
+}
+
+function ensurePhoneOffering(db) {
+  if (!tableExists(db, 'phone_numbers')) return;
+  if (!columnExists(db, 'phone_numbers', 'offering')) {
+    db.exec('ALTER TABLE phone_numbers ADD COLUMN offering TEXT');
+  }
+  backfillPhoneOfferings(db);
+}
+
+function backfillPhoneOfferings(db) {
+  if (!tableExists(db, 'clients')) return;
+
+  const clients = db
+    .prepare(
+      `SELECT id, extra_data
+       FROM clients
+       WHERE extra_data LIKE '%offering_contacto%'`
+    )
+    .all();
+  if (!clients.length) return;
+
+  const phonesStmt = db.prepare(
+    `SELECT id, source, sort_order, offering
+     FROM phone_numbers
+     WHERE client_id = ?
+     ORDER BY sort_order ASC, id ASC`
+  );
+  const update = db.prepare(
+    `UPDATE phone_numbers
+     SET offering = ?
+     WHERE id = ? AND (offering IS NULL OR TRIM(offering) = '')`
+  );
+
+  const txn = db.transaction(() => {
+    for (const client of clients) {
+      const extra = parseJson(client.extra_data);
+      const raw = extra.offering_contacto;
+      if (!raw) continue;
+      const offerings = pipeTokens(raw);
+      const phones = phonesStmt.all(client.id);
+      const targets = phonesForOfferingBackfill(phones, offerings);
+      if (!targets.length) continue;
+      const limit = Math.min(offerings.length, targets.length);
+      for (let i = 0; i < limit; i += 1) {
+        update.run(offerings[i].slice(0, 200), targets[i].id);
+      }
+    }
+  });
+  txn();
 }
 
 export function parseJson(value, fallback = {}) {

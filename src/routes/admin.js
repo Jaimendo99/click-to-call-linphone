@@ -300,8 +300,8 @@ export function createAdminRouter(db) {
        VALUES (?, ?, ?, 'available', ?)`
     );
     const insertPhone = db.prepare(
-      `INSERT INTO phone_numbers (client_id, number, sort_order, source)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO phone_numbers (client_id, number, sort_order, source, offering)
+       VALUES (?, ?, ?, ?, ?)`
     );
     const nextSort = db.prepare(
       `SELECT COALESCE(MAX(sort_order), 0) AS n FROM phone_numbers WHERE client_id = ?`
@@ -329,7 +329,13 @@ export function createAdminRouter(db) {
       for (const entry of entries) {
         if (phoneExists.get(clientId, entry.number)) continue;
         order += 1;
-        insertPhone.run(clientId, entry.number, order, entry.source || null);
+        insertPhone.run(
+          clientId,
+          entry.number,
+          order,
+          entry.source || null,
+          entry.offering || null
+        );
         added += 1;
       }
       return added;
@@ -384,7 +390,13 @@ export function createAdminRouter(db) {
           JSON.stringify(extra)
         );
         phones.forEach((entry, index) => {
-          insertPhone.run(result.lastInsertRowid, entry.number, index + 1, entry.source || null);
+          insertPhone.run(
+            result.lastInsertRowid,
+            entry.number,
+            index + 1,
+            entry.source || null,
+            entry.offering || null
+          );
         });
         summary.imported += 1;
       }
@@ -594,7 +606,7 @@ export function createAdminRouter(db) {
 
     const phones = db
       .prepare(
-        `SELECT id, number, source, sort_order, status, last_result, notes, last_attempt_at
+        `SELECT id, number, source, offering, sort_order, status, last_result, notes, last_attempt_at
          FROM phone_numbers
          WHERE client_id = ?
          ORDER BY sort_order ASC, id ASC`

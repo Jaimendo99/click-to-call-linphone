@@ -491,6 +491,14 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   margin-top: 2px;
 }
 
+.phone-offering {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  max-width: 36ch;
+}
+
 .sheet .btn-call {
   border-radius: 999px;
   padding: 10px 18px;

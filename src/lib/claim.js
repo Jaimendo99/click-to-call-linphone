@@ -6,7 +6,7 @@ export function loadClientPayload(db, client) {
 
   const phones = db
     .prepare(
-      `SELECT id, number, source, sort_order, status, last_result, notes, last_attempt_at
+      `SELECT id, number, source, offering, sort_order, status, last_result, notes, last_attempt_at
        FROM phone_numbers
        WHERE client_id = ?
        ORDER BY sort_order ASC, id ASC`

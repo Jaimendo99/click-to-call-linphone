@@ -142,8 +142,22 @@ export function phoneTokens(raw) {
     .filter(Boolean);
 }
 
+export function pipeTokens(raw) {
+  return String(raw || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 export function originHeader(headers) {
   return (headers || []).find((header) => headerKey(header) === 'numero_origen') || null;
+}
+
+export function offeringHeader(headersOrRow) {
+  const keys = Array.isArray(headersOrRow)
+    ? headersOrRow
+    : Object.keys(headersOrRow || {});
+  return keys.find((header) => headerKey(header) === 'offering_contacto') || null;
 }
 
 export function phoneSourceLabel(raw) {
@@ -163,15 +177,26 @@ function sourceForColumn(column, origin) {
 
 export function extractPhoneEntries(row, phoneColumns, originColumn) {
   const origin = phoneSourceLabel(cell(row, originColumn));
+  const offerings = pipeTokens(cell(row, offeringHeader(row)));
+  let contactIndex = 0;
   const seen = new Set();
   const entries = [];
   for (const column of phoneColumns.filter((name) => !isIdentityHeader(name))) {
     const source = sourceForColumn(column, origin);
+    const isContact = source === 'Contacto';
     for (const token of phoneTokens(cell(row, column))) {
       const normalized = normalizePhoneNumber(token);
-      if (!normalized || seen.has(normalized)) continue;
+      if (!normalized || seen.has(normalized)) {
+        if (isContact) contactIndex += 1;
+        continue;
+      }
       seen.add(normalized);
-      entries.push({ number: normalized, source });
+      let offering = null;
+      if (isContact) {
+        offering = offerings[contactIndex] || null;
+        contactIndex += 1;
+      }
+      entries.push({ number: normalized, source, offering });
     }
   }
   return entries;

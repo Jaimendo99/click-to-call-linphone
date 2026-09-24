@@ -20,16 +20,24 @@ document.getElementById('logout').addEventListener('click', async () => {
 const STATS = [
   ['IDENTIFICACION', 'Cédula'],
   ['deuda_total', 'Deuda'],
-  ['Valor última Factura', 'Última factura'],
-  ['Pagado mes anterior ($)', 'Mes anterior'],
-  ['cliente_bueno', 'Cliente'],
   ['FECHA_NACIM', 'Nacimiento'],
 ];
+
+const LAT_KEYS = ['lat', 'latitude', 'latitud'];
+const LON_KEYS = ['lon', 'lng', 'long', 'longitude', 'longitud'];
 
 function extraValue(extra, key) {
   const found = Object.entries(extra || {}).find(([name]) => name.toLowerCase() === key.toLowerCase());
   if (!found || found[1] == null || found[1] === '') return '';
   return String(found[1]);
+}
+
+function extraValueAny(extra, keys) {
+  for (const key of keys) {
+    const value = extraValue(extra, key);
+    if (value) return value;
+  }
+  return '';
 }
 
 function placeLine(extra) {
@@ -40,11 +48,14 @@ function placeLine(extra) {
 
 function statEntries(client) {
   const stats = [];
-  if (client.external_id) stats.push({ label: 'Cuenta', value: client.external_id });
   for (const [key, title] of STATS) {
     const value = extraValue(client.extra, key);
     if (value) stats.push({ label: title, value });
   }
+  const lat = extraValueAny(client.extra, LAT_KEYS);
+  const lon = extraValueAny(client.extra, LON_KEYS);
+  if (lat) stats.push({ label: 'Lat', value: lat });
+  if (lon) stats.push({ label: 'Lon', value: lon });
   return stats;
 }
 
@@ -192,16 +203,15 @@ function renderPhone(phone, index, client) {
   const number = normalizePhoneNumber(phone.number) || phone.number;
   const needsFeedback = awaitingFeedback === phone.id && !phone.last_result;
   const done = Boolean(phone.last_result);
-  const sourceKey = String(phone.source || '').toLowerCase();
   const card = el('article', { class: `dial${needsFeedback ? ' active' : ''}${done ? ' done' : ''}` });
 
   card.append(
     el('div', { class: 'dial-main' }, [
       el('div', { class: 'dial-kicker' }, [
         el('span', { text: String(index).padStart(2, '0') }),
-        phone.source ? el('span', { class: `tag tag-${sourceKey}`, text: phone.source }) : null,
       ]),
       el('div', { class: 'phone-number', text: number }),
+      phone.offering ? el('div', { class: 'phone-offering', text: phone.offering }) : null,
     ]),
     el('div', { class: 'row-actions' }, [
       pill(done ? phone.status : 'pending'),

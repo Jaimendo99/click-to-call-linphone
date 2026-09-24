@@ -127,3 +127,71 @@ test('migration stops when an account is duplicated and leaves the database unch
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('adds offering column and backfills from extra_data without losing progress', () => {
+  const { dir, dbPath } = tempDbPath();
+  const db = openDb(dbPath);
+  const campaign = db
+    .prepare(`INSERT INTO campaigns (name, filename, active) VALUES ('Base', NULL, 1)`)
+    .run();
+  const client = db
+    .prepare(
+      `INSERT INTO clients (campaign_id, external_id, name, status, extra_data)
+       VALUES (?, '2001', 'Cliente', 'in_progress', ?)`
+    )
+    .run(
+      campaign.lastInsertRowid,
+      JSON.stringify({
+        offering_contacto: 'AMIGO_KIT | PLAN BASICO',
+      })
+    );
+  db.prepare(
+    `INSERT INTO phone_numbers (client_id, number, source, sort_order, status, last_result)
+     VALUES (?, '0991111111', 'CNEL', 1, 'completed', 'Contestó')`
+  ).run(client.lastInsertRowid);
+  db.prepare(
+    `INSERT INTO phone_numbers (client_id, number, source, sort_order, status)
+     VALUES (?, '0992222222', 'Contacto', 2, 'pending')`
+  ).run(client.lastInsertRowid);
+  db.prepare(
+    `INSERT INTO phone_numbers (client_id, number, source, sort_order, status)
+     VALUES (?, '0993333333', 'Contacto', 3, 'pending')`
+  ).run(client.lastInsertRowid);
+  db.close();
+
+  const migrated = openDb(dbPath);
+  const columns = migrated
+    .prepare('PRAGMA table_info(phone_numbers)')
+    .all()
+    .map((column) => column.name);
+  assert.ok(columns.includes('offering'));
+
+  const phones = migrated
+    .prepare(
+      `SELECT number, source, offering, last_result, status
+       FROM phone_numbers
+       ORDER BY sort_order`
+    )
+    .all();
+  assert.deepEqual(
+    phones.map((phone) => [phone.number, phone.source, phone.offering, phone.last_result]),
+    [
+      ['0991111111', 'CNEL', null, 'Contestó'],
+      ['0992222222', 'Contacto', 'AMIGO_KIT', null],
+      ['0993333333', 'Contacto', 'PLAN BASICO', null],
+    ]
+  );
+  assert.equal(
+    migrated.prepare(`SELECT status FROM clients WHERE id = ?`).get(client.lastInsertRowid).status,
+    'in_progress'
+  );
+
+  migrated.close();
+  const again = openDb(dbPath);
+  assert.equal(
+    again.prepare(`SELECT offering FROM phone_numbers WHERE number = '0992222222'`).get().offering,
+    'AMIGO_KIT'
+  );
+  again.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

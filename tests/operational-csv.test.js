@@ -36,6 +36,27 @@ test('maps the operational extract and splits contact numbers', () => {
   );
 });
 
+test('aligns offering_contacto with contact numbers', () => {
+  const entries = extractPhoneEntries(
+    {
+      NUMERO: '0995606551',
+      numeros_contacto: '993899652 | 997283604',
+      offering_contacto: 'AMIGO_KIT | ANTICIPADO PLAN BASICO',
+      numero_origen: 'CNEL',
+    },
+    ['NUMERO', 'numeros_contacto'],
+    'numero_origen'
+  );
+  assert.deepEqual(
+    entries.map((entry) => [entry.number, entry.source, entry.offering]),
+    [
+      ['0995606551', 'CNEL', null],
+      ['0993899652', 'Contacto', 'AMIGO_KIT'],
+      ['0997283604', 'Contacto', 'ANTICIPADO PLAN BASICO'],
+    ]
+  );
+});
+
 test('imported operational rows accept per-number feedback', async () => {
   const ctx = await startTestServer();
   try {
@@ -131,6 +152,34 @@ test('groups repeated accounts and keeps every number', async () => {
         ['0987016184', 'Movistar'],
         ['0995889252', 'Movistar'],
         ['0995889999', 'Contacto'],
+      ]
+    );
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('imports offering_contacto onto each contact phone', async () => {
+  const offeringFixture = new URL('./fixtures/offering-contacto.csv', import.meta.url);
+  const ctx = await startTestServer();
+  try {
+    const admin = await login(ctx.url, 'admin', 'adminpass1');
+    const imported = await importSample(ctx.url, admin.jar, offeringFixture);
+    assert.equal(imported.commit.data.summary.imported, 2);
+
+    const list = await request(
+      ctx.url,
+      admin.jar,
+      `/api/admin/clients?campaignId=${imported.commit.data.campaign.id}`
+    );
+    const magda = list.data.rows.find((row) => row.name.startsWith('MAGDA'));
+    const details = await request(ctx.url, admin.jar, `/api/admin/clients/${magda.id}`);
+    assert.deepEqual(
+      details.data.client.phones.map((phone) => [phone.number, phone.source, phone.offering]),
+      [
+        ['0995606551', 'CNEL', null],
+        ['0993899652', 'Contacto', 'AMIGO_KIT'],
+        ['0997283604', 'Contacto', 'ANTICIPADO PLAN BASICO'],
       ]
     );
   } finally {
