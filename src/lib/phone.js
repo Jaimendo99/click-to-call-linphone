@@ -6,6 +6,9 @@
  *
  * Recommended scheme: sip-linphone:
  * Call action: ?linphone-action=call
+ * Hang-up action: ?linphone-action=bye
+ * Documented as: "bye — Terminate a call (* for all calls; if no target is given,
+ * terminates the current call)"
  */
 
 const PROTOCOL_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
@@ -45,4 +48,8 @@ export function buildLinphoneCallUri(phoneNumber) {
   }
 
   return `sip-linphone:${encodeURIComponent(normalized)}?linphone-action=call`;
+}
+
+export function buildLinphoneHangUpUri() {
+  return 'sip-linphone:?linphone-action=bye';
 }

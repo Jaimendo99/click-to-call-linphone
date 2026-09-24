@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { clear, el, label, pill } from './dom.js';
 import { normalizePhoneNumber } from '/lib/phone.js';
-import { callWithLinphone } from './linphone.js';
+import { callWithLinphone, hangUpWithLinphone } from './linphone.js';
 
 const stage = document.getElementById('stage');
 const whoami = document.getElementById('whoami');
@@ -213,6 +213,14 @@ function renderPhone(phone, index, client) {
             text: 'Llamar',
             onClick: () => startCall(phone),
           }),
+      needsFeedback
+        ? el('button', {
+            class: 'btn btn-ghost',
+            type: 'button',
+            text: 'Colgar',
+            onClick: () => hangUpWithLinphone(),
+          })
+        : null,
     ])
   );
 

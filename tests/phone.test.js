@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildLinphoneCallUri, normalizePhoneNumber } from '../src/lib/phone.js';
+import { buildLinphoneCallUri, buildLinphoneHangUpUri, normalizePhoneNumber } from '../src/lib/phone.js';
 
 test('turns Ecuador mobiles into the national 09 number the PBX dials', () => {
   assert.equal(normalizePhoneNumber(' +593 99 111 1111 '), '0991111111');
@@ -34,4 +34,8 @@ test('builds a Linphone URI with the national number', () => {
 
 test('refuses to build a URI from an invalid number', () => {
   assert.throws(() => buildLinphoneCallUri('sip:evil@x'), /Número de teléfono inválido/);
+});
+
+test('builds the hang-up URI for the current call', () => {
+  assert.equal(buildLinphoneHangUpUri(), 'sip-linphone:?linphone-action=bye');
 });
