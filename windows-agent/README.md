@@ -1,22 +1,21 @@
 # Sonda Liblinphone para Windows x64
 
-Aplicación de consola aislada para comprobar que Liblinphone inicia y detiene su `Core` en la sesión interactiva de Windows y enumera todos los dispositivos de audio que expone el SDK. No configura cuentas SIP, credenciales ni llamadas. Tampoco integra el navegador ni AgenDial.
+Aplicación de consola aislada para comprobar que Liblinphone crea, inicia y detiene su `Core`, y enumera los dispositivos de audio disponibles en una sesión interactiva de Windows. No configura cuentas SIP, credenciales ni llamadas. Tampoco integra el navegador ni AgenDial.
 
-## Decisiones de SDK y API
+## SDK y API
 
-- Paquete NuGet oficial `LinphoneSDK.Windows`, versión fijada `5.5.2`, desde el registry de Belledonne Communications declarado en `NuGet.Config`. Se usa el paquete Windows x64 de la línea estable 5.5.2, en vez del paquete NuGet antiguo publicado en nuget.org.
-- Proyecto dirigido a .NET Framework 4.8 y `PlatformTarget=x64`. La guía de Linphone indica que la variante Win32 x64 es válida para aplicaciones .NET Core/WPF; el paquete ofrece el target `netcore45` para aplicaciones Win32. .NET Framework 4.8 permite consumir ese target y está disponible en Windows 10/11.
-- La API sigue la referencia C# oficial 5.5: `Factory.Instance.CreateCore(null, null, IntPtr.Zero)`, `Core.Start()`, `Core.ExtendedAudioDevices`, `Core.Iterate()` y `Core.Stop()`. Se consulta `ExtendedAudioDevices` para incluir todos los dispositivos, no solo uno por tipo. El bucle llama a `Iterate()` cada 20 ms en el hilo principal, como recomienda la documentación.
-- El Core se crea sin ruta de configuración explícita; la sonda no añade ni lee parámetros SIP. Liblinphone se distribuye bajo GPLv3 según su documentación; revisar licencia antes de cualquier distribución del SDK o de un producto que lo incluya.
-
-La documentación C# publicada está etiquetada 5.5.0 y el SDK binario Windows x64 estable fijado aquí es 5.5.2. La API usada existe en la referencia 5.5.0. Falta confirmar en una PC Windows que el paquete 5.5.2 del registry resuelve para `net48`, restaura las dependencias nativas x64 y carga correctamente en Windows 10/11; esta máquina de desarrollo es macOS ARM64 y no puede verificarlo. Si la restauración reporta que esa versión no existe en el registry o que no incluye `net48`, guardar el error completo y revisar la versión Win64 estable disponible antes de cambiar el pin.
+- Paquete NuGet oficial `LinphoneSDK.Windows` versión fijada `5.5.2`, desde el registry de Belledonne Communications de `NuGet.Config`.
+- La carpeta NuGet observada al restaurar 5.5.2 contiene DLL nativas x64 en `lib/netcore/x64`, pero no contiene `CsWrapper.dll` ni el grupo `lib/win/x64`. Por eso la sonda no usa el wrapper C# que los targets del paquete intentan referenciar: llama a la API C exportada por `liblinphone.dll` mediante P/Invoke. MSBuild quita únicamente esa referencia C# ausente y conserva la copia de las DLL nativas.
+- Se usa la variante `netcore` x64 del paquete, descrita por Linphone para aplicaciones .NET Core. El proyecto apunta a .NET 10 x64. La compatibilidad exacta del binario `netcore` con esta consola en Windows 10/11 debe comprobarse ejecutándola allí; la compilación no valida la carga nativa.
+- Las llamadas P/Invoke corresponden a la API C Liblinphone 5.5: `linphone_factory_get`, `linphone_factory_create_core_3`, `linphone_core_start`, `linphone_core_get_extended_audio_devices`, `linphone_core_iterate`, `linphone_core_stop` y `linphone_core_unref`. Para enumerar la lista y liberar sus objetos se usan las funciones públicas de lista de Bctoolbox.
+- El Core se crea con rutas de configuración nulas, por lo que la sonda no crea ni carga un archivo de cuentas. `linphone_core_iterate()` se ejecuta cada 20 ms en el hilo principal, según la documentación.
+- El SDK está publicado bajo GPL-3.0-or-later; revisar la licencia antes de distribuir el SDK o un producto que lo incluya.
 
 ## Requisitos en Windows 10/11 x64
 
-- .NET SDK 8.x para los comandos `dotnet`.
-- .NET Framework 4.8 Developer Pack / targeting pack, si no está instalado.
-- Acceso HTTPS a nuget.org y al registry NuGet de Linphone: `https://gitlab.linphone.org/api/v4/projects/411/packages/nuget/index.json`.
-- Dispositivos de audio instalados y habilitados en la sesión de usuario para comprobar su enumeración.
+- .NET 10 SDK x64, que incluye el runtime de .NET 10.
+- Acceso HTTPS a nuget.org y al registry NuGet oficial: `https://gitlab.linphone.org/api/v4/projects/411/packages/nuget/index.json`.
+- Dispositivos de audio instalados y habilitados en la sesión del usuario para comprobar la enumeración.
 
 ## Restaurar, compilar y ejecutar
 
@@ -26,37 +25,30 @@ Abre PowerShell en la raíz del repositorio:
 dotnet --info
 dotnet restore .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configfile .\windows-agent\NuGet.Config
 dotnet build .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configuration Release --no-restore -p:Platform=x64
-```
-
-El `-p:Platform=x64` es necesario para que los targets de NuGet de Linphone seleccionen las bibliotecas x64. `PlatformTarget=x64` en el proyecto configura el ejecutable, pero no selecciona por sí solo la carpeta de bibliotecas del paquete.
-
-Si los comandos terminan correctamente, localiza e inicia la sonda:
-
-```powershell
-$probeExe = Get-ChildItem .\windows-agent\src\AgenDial.LinphoneProbe\bin -Filter AgenDial.LinphoneProbe.exe -Recurse | Select-Object -First 1
-& $probeExe.FullName
+& .\windows-agent\src\AgenDial.LinphoneProbe\bin\Release\net10.0\AgenDial.LinphoneProbe.exe
 ```
 
 Debe imprimir `Core iniciado.`, una lista de dispositivos (o indicar que no se detectaron) y mantenerse activa. Presiona Ctrl+C; la salida esperada termina con `Core detenido correctamente.`. El proceso retorna `0` al detenerse normalmente y `1` si falla la inicialización o el cierre del Core.
 
-## Qué adjuntar si falla
+## Si falla
 
-Ejecuta estos comandos desde PowerShell y conserva la salida completa, sin añadir contraseñas ni datos de producción:
+Conserva la salida completa de estos comandos, sin añadir contraseñas ni datos de producción:
 
 ```powershell
 dotnet --info
+dotnet --list-runtimes
 dotnet restore .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configfile .\windows-agent\NuGet.Config --verbosity diagnostic *> .\windows-agent-restore.log
 dotnet build .\windows-agent\src\AgenDial.LinphoneProbe\AgenDial.LinphoneProbe.csproj --configuration Release --no-restore --verbosity diagnostic -p:Platform=x64 *> .\windows-agent-build.log
-$probeExe = Get-ChildItem .\windows-agent\src\AgenDial.LinphoneProbe\bin -Filter AgenDial.LinphoneProbe.exe -Recurse | Select-Object -First 1
-& $probeExe.FullName *> .\windows-agent-run.log
+Get-ChildItem .\windows-agent\src\AgenDial.LinphoneProbe\bin\Release\net10.0 -Filter *.dll | Select-Object -ExpandProperty Name
 ```
 
-Adjunta `windows-agent-restore.log`, `windows-agent-build.log` y `windows-agent-run.log`, además de la edición y versión de Windows (`winver`), arquitectura del sistema y si se detectaron dispositivos. Si falla la carga de DLL, copia también el mensaje completo de `BadImageFormatException`/`DllNotFoundException` o el código de salida. Estos logs no deberían contener secretos porque el proyecto no configura una cuenta; revísalos antes de compartirlos.
+Si el build tiene éxito pero la ejecución muestra `DllNotFoundException` o `EntryPointNotFoundException`, adjunta el mensaje completo y el listado de DLL. Ejecuta la sonda con Ctrl+C después de capturar el error; si inicia, adjunta también lo que imprimió antes de quedar activa. Indica la edición y versión de Windows (`winver`) y la arquitectura del equipo. Revisa los logs antes de compartirlos.
 
-## Referencias oficiales consultadas
+## Referencias oficiales
 
-- [Guía Windows de Liblinphone y registry NuGet](https://wiki.linphone.org/xwiki/wiki/public/view/Lib/Getting%20started/Windows%20UWP/)
-- [Referencia C# de Liblinphone 5.5: Core](https://download.linphone.org/releases/docs/liblinphone/5.5/cs/api/Linphone.Core.html)
-- [Referencia C# de Liblinphone 5.5: Factory](https://download.linphone.org/releases/docs/liblinphone/5.5/cs/api/Linphone.Factory.html)
-- [Referencia C# de Liblinphone 5.5: AudioDevice](https://download.linphone.org/releases/docs/liblinphone/5.5/cs/api/Linphone.AudioDevice.html)
+- [Guía oficial del paquete NuGet Windows, variantes y frameworks](https://wiki.linphone.org/xwiki/wiki/public/view/Lib/Getting%20started/Windows%20UWP/)
+- [Referencia C Liblinphone 5.5: inicialización y ciclo de Core](https://download.linphone.org/releases/docs/liblinphone/5.5/c/group__group__initializing.html)
+- [Referencia C Liblinphone 5.5: parámetros multimedia y dispositivos de audio](https://download.linphone.org/releases/docs/liblinphone/5.5/c/group__group__media__parameters.html)
+- [Referencia C Liblinphone 5.5: audio](https://download.linphone.org/releases/docs/liblinphone/5.5/c/group__audio.html)
+- [Código oficial de empaquetado NuGet Windows](https://github.com/BelledonneCommunications/linphone-sdk/blob/master/cmake/NuGet/Windows/CMakeLists.txt)
 - [Índice oficial de SDK Windows](https://download.linphone.org/releases/windows/sdk/)
