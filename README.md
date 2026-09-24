@@ -82,8 +82,10 @@ Local run:
 ```bash
 cp .env.example .env
 # set SESSION_SECRET, ADMIN_USERNAME, and ADMIN_PASSWORD
-docker compose up --build
+docker compose run --rm --build -p 3000:3000 web
 ```
+
+`docker compose up` on its own does not publish a host port: the service uses `expose: "3000"` and no `ports` mapping, because Traefik in Dokploy routes traffic to the container port. The `-p 3000:3000` above is only for local access.
 
 Open http://localhost:3000. `ADMIN_PASSWORD` creates the first admin only when the database is empty. Changing it later does not update that user.
 
@@ -160,7 +162,7 @@ Phone numbers are stored as separate rows, not as `phone_1` / `phone_2` fields.
 The operational extract (`NUMERO`, `CLIENTE`, `Cuenta Contrato`, `numeros_contacto`) maps automatically:
 
 - `CLIENTE` is the name
-- `Cuenta Contrato` is the client id. Inside one campaign each contract is one queue item, so importing that campaign's file again does not duplicate it
+- `Cuenta Contrato` is the client id. One contract is one queue item within a campaign, and duplicate contracts inside a single uploaded file are skipped. Every upload creates a new campaign, so re-importing the same file adds its contracts again as new clients in the new campaign
 - `NUMERO` and every value inside `numeros_contacto` become separate phone rows. Values split on `|`
 - `0995606551`, `995606551`, and `+593995606551` are stored and dialed as `0995606551`. The local PBX rejects the `+593` form.
 - rows with no usable number are skipped
